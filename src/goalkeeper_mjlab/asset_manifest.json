@@ -1,0 +1,132 @@
+{
+  "source_repository": "https://github.com/IntelligentRoboticsLab/booster_mjlab",
+  "source_commit": "d92e11395d961096d639446c0a8a176f12bb51da",
+  "note": "원본 XML·메시는 바이트 그대로 보존한다. files의 키는 이 패키지 안의 상대경로이며 SHA-256을 검사할 때 사용한다. source_path는 원본 GitHub 저장소 안의 출처 기록일 뿐 실행 시 읽는 경로가 아니다. 이웃 저장소나 노트북의 절대경로가 없어도 실행된다.",
+  "files": {
+    "robots/k1/xmls/k1.xml": {
+      "source_path": "src/booster_mjlab/robots/booster_k1/xmls/k1.xml",
+      "sha256": "c4da49ae6a37f6071c0a01eea3e14530e839f02aaef8d7d968fc3147a78f9a10"
+    },
+    "robots/k1/xmls/meshes/Trunk_1.STL": {
+      "source_path": "src/booster_mjlab/robots/booster_k1/xmls/meshes/Trunk_1.STL",
+      "sha256": "9a48b7fc366dac059c1a0a446abbf6fe205cacce034c4e72f9ba6e256e6ff648"
+    },
+    "robots/k1/xmls/meshes/Trunk_2.STL": {
+      "source_path": "src/booster_mjlab/robots/booster_k1/xmls/meshes/Trunk_2.STL",
+      "sha256": "2a6c08aa314083f834d0a15c0028124c9778e6593aca150f7e45e6469dd5cf39"
+    },
+    "robots/k1/xmls/meshes/K1logo.STL": {
+      "source_path": "src/booster_mjlab/robots/booster_k1/xmls/meshes/K1logo.STL",
+      "sha256": "93aab425a2e953fdd1c704ce9d9a4fb8d8431da9cc0cc4d2648838b11c47b487"
+    },
+    "robots/k1/xmls/meshes/Head_1.STL": {
+      "source_path": "src/booster_mjlab/robots/booster_k1/xmls/meshes/Head_1.STL",
+      "sha256": "9ab00ca2c2ae9b27cdd54cdbbe7d9e50b1873f5815163aef5d719beceb445c96"
+    },
+    "robots/k1/xmls/meshes/Head_2.STL": {
+      "source_path": "src/booster_mjlab/robots/booster_k1/xmls/meshes/Head_2.STL",
+      "sha256": "ae8f81b864fd0f16efaab6b0ee697a0fd80e54c2bd38f48526a326bc03085020"
+    },
+    "robots/k1/xmls/meshes/Left_Arm_1.STL": {
+      "source_path": "src/booster_mjlab/robots/booster_k1/xmls/meshes/Left_Arm_1.STL",
+      "sha256": "e1a6de4b34f17260daa09b81aa3bc115d450787b808190aca286073b45540775"
+    },
+    "robots/k1/xmls/meshes/Left_Arm_2.STL": {
+      "source_path": "src/booster_mjlab/robots/booster_k1/xmls/meshes/Left_Arm_2.STL",
+      "sha256": "b5861bc9f6119baf50f131bbc4f6420867e63c7c1de31792d1e788cac70ad8ae"
+    },
+    "robots/k1/xmls/meshes/Left_Arm_3.STL": {
+      "source_path": "src/booster_mjlab/robots/booster_k1/xmls/meshes/Left_Arm_3.STL",
+      "sha256": "5424bdfedad4e70edc2dab6587bf0062c44489768c6e53ba4c2e58d700267f78"
+    },
+    "robots/k1/xmls/meshes/Left_Arm_4.STL": {
+      "source_path": "src/booster_mjlab/robots/booster_k1/xmls/meshes/Left_Arm_4.STL",
+      "sha256": "e7de1dc79b85b23792eaf8d49688891876f46b4eab7234f2513ae9e241a72b14"
+    },
+    "robots/k1/xmls/meshes/Right_Arm_1.STL": {
+      "source_path": "src/booster_mjlab/robots/booster_k1/xmls/meshes/Right_Arm_1.STL",
+      "sha256": "1dc1518437d0b2de09d7c559d13f620ee4910b985ca0b70cb387f29fad67a7d6"
+    },
+    "robots/k1/xmls/meshes/Right_Arm_2.STL": {
+      "source_path": "src/booster_mjlab/robots/booster_k1/xmls/meshes/Right_Arm_2.STL",
+      "sha256": "2f7f4bf14aac5fdb06974c2336be24b5f5577b069a6e0a36e98a443779bb15cc"
+    },
+    "robots/k1/xmls/meshes/Right_Arm_3.STL": {
+      "source_path": "src/booster_mjlab/robots/booster_k1/xmls/meshes/Right_Arm_3.STL",
+      "sha256": "e3ae9cbd20736f4c3b29b2a455b07d8a59e6c093258d467fc20ecd4dc4b7486d"
+    },
+    "robots/k1/xmls/meshes/Right_Arm_4.STL": {
+      "source_path": "src/booster_mjlab/robots/booster_k1/xmls/meshes/Right_Arm_4.STL",
+      "sha256": "4a70e0006cc89bfeacb9b825821cdf715113b9cf7d267de6fe4b64ad3e5b9aad"
+    },
+    "robots/k1/xmls/meshes/Left_Hip_Pitch.STL": {
+      "source_path": "src/booster_mjlab/robots/booster_k1/xmls/meshes/Left_Hip_Pitch.STL",
+      "sha256": "ca604e643aaf41ec4d05c8a13ff66ce39587f9d80be7268376c2a6368decd55f"
+    },
+    "robots/k1/xmls/meshes/Left_Hip_Roll.STL": {
+      "source_path": "src/booster_mjlab/robots/booster_k1/xmls/meshes/Left_Hip_Roll.STL",
+      "sha256": "aa278205ca751295c3d073ca3ddf682762a66218e6e5f239a22109b1d8f5ecf9"
+    },
+    "robots/k1/xmls/meshes/Left_Hip_Yaw.STL": {
+      "source_path": "src/booster_mjlab/robots/booster_k1/xmls/meshes/Left_Hip_Yaw.STL",
+      "sha256": "2d8ed37c3a7c954937d5e3b462869f93292e4c4b76047fd4667380fedd3d66d2"
+    },
+    "robots/k1/xmls/meshes/Left_Shank.STL": {
+      "source_path": "src/booster_mjlab/robots/booster_k1/xmls/meshes/Left_Shank.STL",
+      "sha256": "0e99f5850ba752492a7d5fa0fb066efae03823cb4020e7e57a38e652a34be85c"
+    },
+    "robots/k1/xmls/meshes/Left_Ankle_Cross.STL": {
+      "source_path": "src/booster_mjlab/robots/booster_k1/xmls/meshes/Left_Ankle_Cross.STL",
+      "sha256": "1798cb3b9721d82c913ce4b0080da9c0eaa69749445bc4a8d6f13dc6a69da232"
+    },
+    "robots/k1/xmls/meshes/Left_Foot.STL": {
+      "source_path": "src/booster_mjlab/robots/booster_k1/xmls/meshes/Left_Foot.STL",
+      "sha256": "1a391f4b3b87a27726e09f15f6d2ce7795c702c13c0d76307d4756d8aeaadde3"
+    },
+    "robots/k1/xmls/meshes/Right_Hip_Pitch.STL": {
+      "source_path": "src/booster_mjlab/robots/booster_k1/xmls/meshes/Right_Hip_Pitch.STL",
+      "sha256": "ab6052ca8f6a2ddf75ad536e3daf51024cbd8f6b9fa5ca36a8ac966347d850ac"
+    },
+    "robots/k1/xmls/meshes/Right_Hip_Roll.STL": {
+      "source_path": "src/booster_mjlab/robots/booster_k1/xmls/meshes/Right_Hip_Roll.STL",
+      "sha256": "9655e49b0ae12366eb8dba28dcc9593d63d6ec7a8431d90dc692041c8bb74765"
+    },
+    "robots/k1/xmls/meshes/Right_Hip_Yaw.STL": {
+      "source_path": "src/booster_mjlab/robots/booster_k1/xmls/meshes/Right_Hip_Yaw.STL",
+      "sha256": "dd54f3cd1cdbaead210692a4cd4e131a1b696ceefd9715ab1eb6a8e9f44d88aa"
+    },
+    "robots/k1/xmls/meshes/Right_Shank.STL": {
+      "source_path": "src/booster_mjlab/robots/booster_k1/xmls/meshes/Right_Shank.STL",
+      "sha256": "6a7e831055148894ba623bf8d2eca27f2cef32e324819566c39e33cb12c0b4f9"
+    },
+    "robots/k1/xmls/meshes/Right_Ankle_Cross.STL": {
+      "source_path": "src/booster_mjlab/robots/booster_k1/xmls/meshes/Right_Ankle_Cross.STL",
+      "sha256": "fd59798e9b4b55661372b601db3dbec9ef5567256b631c3d679a2e3446638256"
+    },
+    "robots/k1/xmls/meshes/Right_Foot.STL": {
+      "source_path": "src/booster_mjlab/robots/booster_k1/xmls/meshes/Right_Foot.STL",
+      "sha256": "059b969922a9a31eb40828206070731d3612453f3aa3c2559702c566abb4b0fd"
+    },
+    "environment/ball/xmls/ball.xml": {
+      "source_path": "src/booster_mjlab/environment/ball/xmls/ball.xml",
+      "sha256": "53821d7e05f64172a13ea1e639cbabf12893c3d05d9a447adaf693e6b448072a"
+    },
+    "environment/ball/xmls/assets/ball_size5_0.obj": {
+      "source_path": "src/booster_mjlab/environment/ball/xmls/assets/ball_size5_0.obj",
+      "sha256": "da8d54f01967ecba4a577f2706b54e01b49937a598d9a5e49718133b86541dd3"
+    },
+    "environment/ball/xmls/assets/ball_size5_1.obj": {
+      "source_path": "src/booster_mjlab/environment/ball/xmls/assets/ball_size5_1.obj",
+      "sha256": "06f60d0e23fa61fd51146233e2e1f31796b11ef65f32eb46f93980295d25ef93"
+    },
+    "environment/goal/xmls/goal.xml": {
+      "source_path": "src/booster_mjlab/environment/goal/xmls/goal.xml",
+      "sha256": "0f987324d5a7c6372a87fb4a06255e1533b7421c49bb805a0c5343fd0ed13a4f"
+    },
+    "environment/goal/xmls/assets/goal_180_120.obj": {
+      "source_path": "src/booster_mjlab/environment/goal/xmls/assets/goal_180_120.obj",
+      "sha256": "31da7ca46c96ee88bce38a619e6442ff6100f0deb9756f52bae862a6d1ab7727"
+    }
+  },
+  "package_path_base": "goalkeeper_mjlab package directory (PACKAGE_ROOT), independent of working directory"
+}

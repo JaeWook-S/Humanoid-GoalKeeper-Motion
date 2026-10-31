@@ -1,0 +1,142 @@
+{
+  "reviewed_on": "2026-10-31",
+  "official_repository": "https://github.com/BoosterRobotics/booster_train",
+  "official_commit": "83037fde138c49cd8d6459a4b592538e6e979ffb",
+  "official_files": {
+    "actuator.py": {
+      "url": "https://github.com/BoosterRobotics/booster_train/blob/83037fde138c49cd8d6459a4b592538e6e979ffb/source/booster_train/booster_train/assets/robots/actuator.py",
+      "sha256": "aa231c5bf376bda56f14b1075fe6049f660339d96d8f737cc1ba4da5c285ca83"
+    },
+    "booster_k1.py": {
+      "url": "https://github.com/BoosterRobotics/booster_train/blob/83037fde138c49cd8d6459a4b592538e6e979ffb/source/booster_train/booster_train/assets/robots/booster_k1.py",
+      "sha256": "9b42feb11893c3d2f5cf1c7b99122604d42df68eb9f4a3b10a6aafa6a514d770"
+    },
+    "tracking_env_cfg.py": {
+      "url": "https://github.com/BoosterRobotics/booster_train/blob/83037fde138c49cd8d6459a4b592538e6e979ffb/source/booster_train/booster_train/tasks/manager_based/beyond_mimic/robots/k1/mj_dance_002/tracking_env_cfg.py",
+      "sha256": "626e9dad1d58eb0720156e0b2dd2b151021bbc5ca68e1865de60988f69f65ef0"
+    }
+  },
+  "official_motors": {
+    "head": {
+      "effort_limit": 6.0,
+      "velocity_limit": 7.85,
+      "knee_point_velocity": 10.47,
+      "armature": 0.001
+    },
+    "arm": {
+      "effort_limit": 14,
+      "velocity_limit": 33.51,
+      "knee_point_velocity": 5.24,
+      "armature": 0.001
+    },
+    "hip_pitch": {
+      "effort_limit": 68.0,
+      "velocity_limit": 14.66,
+      "knee_point_velocity": 1.88,
+      "armature": 0.0478125
+    },
+    "hip_roll": {
+      "effort_limit": 43.0,
+      "velocity_limit": 12.15,
+      "knee_point_velocity": 8.38,
+      "armature": 0.0339552
+    },
+    "hip_yaw": {
+      "effort_limit": 38.3,
+      "velocity_limit": 17.59,
+      "knee_point_velocity": 7.85,
+      "armature": 0.0282528
+    },
+    "knee": {
+      "effort_limit": 112.0,
+      "velocity_limit": 12.57,
+      "knee_point_velocity": 2.09,
+      "armature": 0.095625
+    },
+    "ankle_pitch": {
+      "effort_limit": 38.3,
+      "velocity_limit": 17.59,
+      "knee_point_velocity": 7.85,
+      "armature": 0.03955392
+    },
+    "ankle_roll": {
+      "effort_limit": 38.3,
+      "velocity_limit": 17.59,
+      "knee_point_velocity": 7.85,
+      "armature": 0.011301120000000001
+    }
+  },
+  "local_reference_commit": "d92e11395d961096d639446c0a8a176f12bb51da",
+  "local_reference_motors": {
+    "head": {
+      "armature": 0.001,
+      "effort_limit": 6.0,
+      "velocity_limit": 7.85,
+      "knee_point_velocity": 10.47,
+      "stiffness": 4.0,
+      "damping": 0.25
+    },
+    "arm": {
+      "armature": 0.001,
+      "effort_limit": 14.0,
+      "velocity_limit": 33.51,
+      "knee_point_velocity": 5.24,
+      "stiffness": 10.0,
+      "damping": 1.0
+    },
+    "hip_pitch": {
+      "armature": 0.0478125,
+      "effort_limit": 68.0,
+      "velocity_limit": 14.66,
+      "knee_point_velocity": 1.88,
+      "stiffness": 80.0,
+      "damping": 4.0
+    },
+    "hip_roll": {
+      "armature": 0.0339552,
+      "effort_limit": 76.0,
+      "velocity_limit": 12.57,
+      "knee_point_velocity": 2.62,
+      "stiffness": 80.0,
+      "damping": 4.0
+    },
+    "hip_yaw": {
+      "armature": 0.0282528,
+      "effort_limit": 38.3,
+      "velocity_limit": 17.59,
+      "knee_point_velocity": 7.85,
+      "stiffness": 80.0,
+      "damping": 4.0
+    },
+    "knee": {
+      "armature": 0.095625,
+      "effort_limit": 112.0,
+      "velocity_limit": 12.57,
+      "knee_point_velocity": 2.09,
+      "stiffness": 80.0,
+      "damping": 4.0
+    },
+    "ankle_pitch": {
+      "armature": 0.0565056,
+      "effort_limit": 38.3,
+      "velocity_limit": 17.59,
+      "knee_point_velocity": 7.85,
+      "stiffness": 50.0,
+      "damping": 2.0
+    },
+    "ankle_roll": {
+      "armature": 0.0565056,
+      "effort_limit": 38.3,
+      "velocity_limit": 17.59,
+      "knee_point_velocity": 7.85,
+      "stiffness": 50.0,
+      "damping": 2.0
+    }
+  },
+  "note": "함께 배포한 숫자 기준표다. official_files의 URL·해시와 local_reference_*는 비교 출처 기록이며 실행 시 해당 URL이나 원본 저장소를 읽지 않는다. local은 노트북 폴더 경로를 뜻하지 않는다. 값은 공식 코드에서 추출한 시뮬레이션 기준이며 실물 측정값이 아니다.",
+  "official_execution": {
+    "physics_dt": 0.005,
+    "decimation": 4
+  },
+  "local_reference_repository": "https://github.com/IntelligentRoboticsLab/booster_mjlab"
+}

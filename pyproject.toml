@@ -1,0 +1,23 @@
+[project]
+name = "goalkeeper-mjlab"
+version = "0.2.0"
+description = "Booster K1 goalkeeper scene, motor control and simulation validation"
+readme = "docs/구현2단계.md"
+requires-python = ">=3.13"
+dependencies = ["numpy>=2.0", "mujoco>=3.4"]
+
+[project.optional-dependencies]
+# pip도 uv도 같은 MJLab을 설치한다. tool.uv.sources만 쓰면 pip는 이 커밋을 무시한다.
+training = ["mjlab @ git+https://github.com/mujocolab/mjlab.git@b517e0c489139e7fcee95702cfb2b01931264985"]
+
+[project.scripts]
+goalkeeper-inspect = "goalkeeper_mjlab.scripts.inspect_scene:main"
+
+[build-system]
+requires = ["uv_build>=0.9.5,<0.13.0"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+# 소스 배포본에도 실행 진입점·단계별 설명·검사 코드를 함께 넣어 재현할 수 있게 한다.
+source-include = ["main.py", "docs/**", "tests/**"]
+
