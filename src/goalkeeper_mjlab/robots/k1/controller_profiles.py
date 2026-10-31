@@ -1,7 +1,7 @@
 """목표각까지 얼마나 세게 밀고, 움직임을 얼마나 억제할지 정하는 제어기 설정.
 
 모터 자체의 한계는 motor_parameters.py, 프로그램이 요청하는 힘의 상한은 이 파일에 둔다.
-아래 hold gain은 로컬 booster_mjlab의 PD를 사용한다. 공식 최신 PD와 다름을 의도적으로 표시한다.
+아래 hold gain은 wirlwind 팀 코드의 PD를 사용한다. 공식 최신 PD와 다름을 의도적으로 표시한다.
 """
 
 from __future__ import annotations
@@ -31,8 +31,8 @@ class ControllerParameters:
 
 
 def hold_controllers() -> dict[str, ControllerParameters]:
-    # [공식과 다름] gain은 로컬 k1_constants.py의 head 4/.25, arm 10/1, leg 80/4, ankle 50/2.
-    # 출력 상한은 현재 공식 모터의 저속 한계로 명시했다. Hip Roll은 로컬 76 대신 43이다.
+    # [공식과 다름] gain은 wirlwind 팀 코드의 k1_constants.py에 있는 head 4/.25, arm 10/1, leg 80/4, ankle 50/2.
+    # 출력 상한은 현재 공식 모터의 저속 한계로 명시했다. Hip Roll은 wirlwind 팀 코드의 76 대신 Booster 공식 값 43이다.
     # 실물용 gain을 보증하는 설정이 아니라 현재 MJCF에서 준비 자세 유지를 검증할 설정이다.
     return {
         "head": ControllerParameters(kp=4.0, kd=0.25, output_limit=6.0),

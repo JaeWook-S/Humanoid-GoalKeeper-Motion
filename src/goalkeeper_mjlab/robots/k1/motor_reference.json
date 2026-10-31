@@ -133,10 +133,11 @@
       "damping": 2.0
     }
   },
-  "note": "함께 배포한 숫자 기준표다. official_files의 URL·해시와 local_reference_*는 비교 출처 기록이며 실행 시 해당 URL이나 원본 저장소를 읽지 않는다. local은 노트북 폴더 경로를 뜻하지 않는다. 값은 공식 코드에서 추출한 시뮬레이션 기준이며 실물 측정값이 아니다.",
+  "note": "함께 배포한 숫자 기준표다. official_files의 URL·해시와 local_reference_*는 wirlwind 팀 코드의 비교 출처 기록이며 실행 시 해당 URL이나 참조 저장소를 읽지 않는다. local은 노트북 폴더 경로를 뜻하지 않는다. 값은 공식 코드에서 추출한 시뮬레이션 기준이며 실물 측정값이 아니다.",
   "official_execution": {
     "physics_dt": 0.005,
     "decimation": 4
   },
-  "local_reference_repository": "https://github.com/IntelligentRoboticsLab/booster_mjlab"
+  "local_reference_repository": "https://github.com/IntelligentRoboticsLab/booster_mjlab",
+  "local_reference_team": "wirlwind"
 }

@@ -13,7 +13,7 @@ def add_position_actuator(spec: mujoco.MjSpec, joint_name: str, armature: float,
     spec.joint(joint_name).armature = armature
     actuator = spec.add_actuator(name=joint_name, target=joint_name)
     # 엔진 안에서 PD를 계산해야 implicitfast 적분기가 제동 효과까지 반영해 빠른 관절의 진동을 줄인다.
-    # 공식 Isaac의 명시적 PD와 구현 방식이 다르며, 로컬 booster_mjlab의 MuJoCo 이식 방식을 따른다.
+    # 공식 Isaac의 명시적 PD와 구현 방식이 다르며, wirlwind 팀 코드의 MuJoCo 이식 방식을 따른다.
     actuator.set_to_position(kp=kp, kv=kd)
     actuator.trntype = mujoco.mjtTrn.mjTRN_JOINT
     actuator.gear = (1.0, 0.0, 0.0, 0.0, 0.0, 0.0)

@@ -1,5 +1,5 @@
 """
-Wirlwind 공 설정
+wirlwind 팀 코드에서 가져온 공 설정
 """
 
 from __future__ import annotations
@@ -14,21 +14,21 @@ from goalkeeper_mjlab.assets import load_model_spec
 
 BALL_XML = Path(__file__).parent / "xmls" / "ball.xml"
 
-# 공 크기·질량의 출처: booster_mjlab/environment/ball/ball_constants.py.
-# 원본은 5호 공을 '반지름 11 cm, 질량 430 g'으로 정하고, 다른 호수는 이 값에 배율을 곱함
+# 공 크기·질량의 출처: wirlwind 팀 코드의 environment/ball/ball_constants.py.
+# wirlwind 팀 코드는 5호 공을 '반지름 11 cm, 질량 430 g'으로 정하고, 다른 호수는 이 값에 배율을 곱함
 BALL_SIZE_5_RADIUS: float = 0.11  # 반지름(m)
 BALL_SIZE_5_MASS: float = 0.430  # 질량(kg)
 
-# 원본 모양은 반지름 0.11 m로 만들어져 있다. 원하는 반지름 / 이 값으로 화면 크기를 맞춤
-# 공 크기 변경은 BallCfg.radius_override로 하고, 이 값은 원본 파일 크기의 기준
-BALL_MESH_REFERENCE_RADIUS: float = 0.11  # m: 원본 3D 모양의 반지름
+# wirlwind의 공 메시는 반지름 0.11 m로 만들어져 있다. 원하는 반지름 / 이 값으로 화면 크기를 맞춤
+# 공 크기 변경은 BallCfg.radius_override로 하고, 이 값은 wirlwind 메시 파일 크기의 기준
+BALL_MESH_REFERENCE_RADIUS: float = 0.11  # m: wirlwind 공 메시의 반지름
 
 # 같은 크기·무게라도 무게가 공의 중심에 모였는지, 겉에 모였는지에 따라 돌리기 힘든 정도가 다르다.
 # 여기서는 축구공을 '속이 비고, 무게가 겉껍질에 고르게 모인 공'으로 가정
 # 2/3은 이 모양의 회전 관성(회전 속도를 바꾸기 어려운 정도)을 계산할 때 정해지는 계수
 BALL_SHELL_INERTIA_RATIO: float = 2.0 / 3.0
 
-# 아래 마찰값도 원본 설정이다. 값을 정한 실험 자료는 원본 파일에 적혀 있지 않다.
+# 아래 마찰값도 wirlwind 팀 코드의 설정이다. 값을 정한 실험 자료는 해당 참조 파일에 적혀 있지 않다.
 # 1) 미끄럼: 공과 바닥이 닿은 부분이 서로 쓸려 지나갈 때 생기는 저항이다.
 #    같은 접촉 조건에서 값을 키우면 미끄러지는 것을 더 강하게 막는다. 단위는 없다.
 BALL_SLIDING_FRICTION: float = 0.5
@@ -55,7 +55,7 @@ BALL_COLLISION_SOLREF: tuple[float, float] = (0.05, 0.15)
 
 # 호수별 SIZE_SCALES[호수][0]은 크기, [1]은 질량에 곱한다.
 # 예: 4호 반지름 = 0.11 * 0.9384, 질량 = 0.430 * 0.8605.
-# 이 표는 원본 그대로이며, 각 배율을 어떻게 측정하거나 계산했는지는 원본에 설명이 없다.
+# 이 표는 wirlwind 팀 코드와 같으며, 각 배율을 어떻게 측정하거나 계산했는지는 참조 코드에 설명이 없다.
 SIZE_SCALES = {
     1: (0.6304, 0.4419), 2: (0.8188, 0.6163), 3: (0.8551, 0.7209),
     4: (0.9384, 0.8605), 5: (1.0, 1.0),
@@ -93,12 +93,12 @@ class BallCfg:
 def get_spec(cfg: BallCfg = BallCfg()) -> mujoco.MjSpec:
     """공 설정을 MuJoCo 모델에 적용한다. 겉모양과 실제 충돌 계산용 공의 크기를 함께 맞춘다."""
     spec = load_model_spec(BALL_XML)
-    # 예: 사용할 반지름이 0.10 m라면 원본 0.11 m짜리 모양을 0.10/0.11배로 줄인다.
+    # 예: 사용할 반지름이 0.10 m라면 wirlwind의 반지름 0.11 m 공 메시를 0.10/0.11배로 줄인다.
     scale = cfg.radius / BALL_MESH_REFERENCE_RADIUS
     for mesh in spec.meshes:
         mesh.scale = (scale, scale, scale)
     # 위의 '얼마나 빨리 느려질지' 설정을 MuJoCo의 구름 저항 계수로 바꾼다.
-    # 원본 변환식은 공의 이동과 회전을 함께 고려해 (1 + 2/3) * 목표값 * 반지름을 사용한다.
+    # wirlwind 팀 코드의 변환식은 공의 이동과 회전을 함께 고려해 (1 + 2/3) * 목표값 * 반지름을 사용한다.
     # 이 식은 현재 설정인 평지의 미끄럼 없는 구름과 elliptic 접촉 모델을 기준으로 한다.
     # 기본 4호 공이면 약 0.0103224 m가 나온다. 자세한 식과 출처는 docs/구현1단계.md에 있다.
     rolling_friction = (1.0 + BALL_SHELL_INERTIA_RATIO) * BALL_ROLLING_RESISTANCE * cfg.radius

@@ -1,6 +1,6 @@
 """K1 serial-ankle 모델의 구조와 검사 전용 초기 자세.
 
-출처: Wirlwind team - booster_mjlab d92e11395d961096d639446c0a8a176f12bb51da.
+참조 출처: wirlwind 팀 코드(저장소명: booster_mjlab), 커밋 d92e11395d961096d639446c0a8a176f12bb51da.
 모터·PD·실행 구성은 2단계 모듈에서 연결하고, 정책 action scale은 4단계에서 설정한다.
 """
 
@@ -64,11 +64,11 @@ class RobotPoseCfg:
 
 
 def get_spec() -> mujoco.MjSpec:
-    """원본 파일을 보존하고 호출마다 독립적인 MjSpec을 반환한다."""
+    """wirlwind 참조 자산을 보존하고 호출마다 독립적인 MjSpec을 반환한다."""
     spec = load_model_spec(K1_XML)
     for geom in spec.geoms:
         if "_collision" in geom.name.lower():
-            # Whirlwind FULL_COLLISION과 같은 접촉 설정. 손/팔/몸통도 공과 접촉한다.
+            # wirlwind 팀의 FULL_COLLISION과 같은 접촉 설정. 손/팔/몸통도 공과 접촉한다.
             geom.group = 3
             geom.contype = geom.conaffinity = 1
             geom.solref = (0.01, 1.0)

@@ -1,7 +1,7 @@
 {
   "source_repository": "https://github.com/IntelligentRoboticsLab/booster_mjlab",
   "source_commit": "d92e11395d961096d639446c0a8a176f12bb51da",
-  "note": "원본 XML·메시는 바이트 그대로 보존한다. files의 키는 이 패키지 안의 상대경로이며 SHA-256을 검사할 때 사용한다. source_path는 원본 GitHub 저장소 안의 출처 기록일 뿐 실행 시 읽는 경로가 아니다. 이웃 저장소나 노트북의 절대경로가 없어도 실행된다.",
+  "note": "wirlwind 팀 코드에서 가져온 XML·메시는 바이트 그대로 보존한다. files의 키는 이 패키지 안의 상대경로이며 SHA-256을 검사할 때 사용한다. source_path는 wirlwind GitHub 저장소 안의 출처 기록일 뿐 실행 시 읽는 경로가 아니다. 이웃 저장소나 노트북의 절대경로가 없어도 실행된다.",
   "files": {
     "robots/k1/xmls/k1.xml": {
       "source_path": "src/booster_mjlab/robots/booster_k1/xmls/k1.xml",
@@ -128,5 +128,6 @@
       "sha256": "31da7ca46c96ee88bce38a619e6442ff6100f0deb9756f52bae862a6d1ab7727"
     }
   },
-  "package_path_base": "goalkeeper_mjlab package directory (PACKAGE_ROOT), independent of working directory"
+  "package_path_base": "goalkeeper_mjlab package directory (PACKAGE_ROOT), independent of working directory",
+  "source_team": "wirlwind"
 }

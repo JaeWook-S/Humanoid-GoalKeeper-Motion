@@ -31,7 +31,7 @@ class Stage1SceneCfg:
     goal_distance: float = 0.75  # 최종 학습 배치 거리는 후속 단계에서 정한다.
     num_envs: int = 1
     env_spacing: float = 4.0  # 독립 물리 월드의 표시용 간격. 충돌 격리용 값이 아니다.
-    preview_timestep: float = 0.002  # 원본 K1 XML 값. 2단계에서 물리/제어 주기를 확정한다.
+    preview_timestep: float = 0.002  # wirlwind 참조 K1 XML 값. 2단계에서 물리/제어 주기를 확정한다.
 
     def __post_init__(self) -> None:
         if isinstance(self.num_envs, bool) or not isinstance(self.num_envs, int) or self.num_envs < 1:
@@ -62,7 +62,7 @@ def apply_scene_settings(spec: mujoco.MjSpec, cfg: Stage1SceneCfg) -> None:
     # 자식 XML의 option은 attach 시 전파되지 않는다. 전역 옵션은 합성 후 여기서 통일한다.
     spec.option.timestep = cfg.preview_timestep
     spec.option.gravity = (0.0, 0.0, -9.81)
-    # 원본 공의 rolling resistance 변환은 elliptic friction cone을 전제로 한다.
+    # wirlwind 공 설정의 rolling resistance 변환은 elliptic friction cone을 전제로 한다.
     spec.option.cone = mujoco.mjtCone.mjCONE_ELLIPTIC
     opening = get_opening(cfg.goal)
     # site는 위치를 눈으로 확인하는 표시다. 여기서는 골문 가운데에 작은 빨간 점을 찍는다.
@@ -94,9 +94,9 @@ def build_scene_spec(cfg: Stage1SceneCfg = Stage1SceneCfg(),
     ball.worldbody.bodies[0].pos = offset + cfg.resolved_ball_position
     goal = goal_spec(cfg.goal)
     goal.worldbody.bodies[0].pos = offset + cfg.goal_position
-    # 원본 파일의 골대 방향을 현재 장면에 맞춰 바닥 위에서 -90도 돌린다.
+    # wirlwind 자산 파일의 골대 방향을 현재 장면에 맞춰 바닥 위에서 -90도 돌린다.
     # 그러면 골문 입구는 로봇 쪽을 향하고, 뒤쪽 연결대는 로봇 뒤쪽(-X)으로 뻗는다.
-    # 원본의 가로 방향 X는 장면의 Y 방향이 된다. np.pi/2 rad가 90도다.
+    # wirlwind 골대 자산의 가로 방향 X는 장면의 Y 방향이 된다. np.pi/2 rad가 90도다.
     goal.worldbody.bodies[0].quat = yaw_quaternion(-np.pi / 2)
     for name, child in (("robot", robot), ("ball", ball), ("goal", goal)):
         spec.attach(child, prefix=name + "/", frame=spec.worldbody.add_frame())

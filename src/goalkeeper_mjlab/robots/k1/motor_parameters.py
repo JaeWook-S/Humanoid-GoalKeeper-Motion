@@ -1,7 +1,7 @@
 """모터가 실제로 낼 수 있다고 모델링한 힘·속도·회전 관성. PD 설정은 controller_profiles.py에 둔다.
 
 공식 참조는 BoosterRobotics/booster_train의 고정 커밋이다. 실물 모터를 측정한 결과는 아니다.
-로컬 booster_mjlab은 공식 저장소와 다른 프로젝트이므로 두 출처를 분리한다.
+wirlwind 팀 코드(저장소명: booster_mjlab)와 Booster 공식 코드를 구분한다.
 """
 
 from __future__ import annotations
@@ -42,7 +42,7 @@ class MotorParameters:
         return min(self.knee_point_velocity, self.velocity_limit)
 
 
-# 공식 actuator.py의 동일 모터 모델. Hip Roll의 43/12.15/8.38은 로컬의 76/12.57/2.62와 다르다.
+# 공식 actuator.py의 동일 모터 모델. Hip Roll의 43/12.15/8.38은 wirlwind 팀 코드의 76/12.57/2.62와 다르다.
 HEAD_MOTOR = MotorParameters(model_name="HT4438", armature=0.001, peak_effort=6.0, velocity_limit=7.85, knee_point_velocity=10.47)
 ARM_MOTOR = MotorParameters(model_name="R14", armature=0.001, peak_effort=14.0, velocity_limit=33.51, knee_point_velocity=5.24)
 HIP_PITCH_MOTOR = MotorParameters(model_name="E6408", armature=0.0478125, peak_effort=68.0, velocity_limit=14.66, knee_point_velocity=1.88)
@@ -59,7 +59,7 @@ OFFICIAL_MOTORS = {
     "hip_pitch": HIP_PITCH_MOTOR, "hip_roll": HIP_ROLL_MOTOR, "hip_yaw": HIP_YAW_MOTOR,
     "knee": KNEE_MOTOR, "ankle_pitch": ANKLE_PITCH_MOTOR, "ankle_roll": ANKLE_ROLL_MOTOR,
 }
-# 로컬 모터 테이블을 대조하는 옵션이다. gain/지연/정책까지 과거 학습 전체를 재현하는 설정은 아니다.
+# wirlwind 팀의 모터 테이블을 대조하는 옵션이다. gain/지연/정책까지 과거 학습 전체를 재현하는 설정은 아니다.
 LEGACY_MOTORS = {
     **OFFICIAL_MOTORS,
     "hip_roll": replace(HIP_ROLL_MOTOR, peak_effort=76.0, velocity_limit=12.57, knee_point_velocity=2.62),

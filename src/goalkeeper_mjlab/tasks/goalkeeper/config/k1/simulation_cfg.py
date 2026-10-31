@@ -9,7 +9,7 @@ import mujoco
 
 @dataclass(frozen=True)
 class PhysicsControlCfg:
-    # 0.005초마다 충돌과 운동을 계산한다. 공식/로컬 Booster의 50 Hz 구성과 같은 시간 관계다.
+    # 0.005초마다 충돌과 운동을 계산한다. Booster 공식 코드와 wirlwind 팀 코드의 50 Hz 구성과 같은 시간 관계다.
     physics_dt: float = 0.005
     decimation: int = 4  # 정책 목표각 1번당 물리를 4번 진행한다. 정책 주기는 0.020초=50 Hz다.
     # 적분기는 지금의 위치·속도·힘에서 다음 순간의 상태를 계산하는 방법이다.
@@ -17,7 +17,7 @@ class PhysicsControlCfg:
     integrator: str = "implicitfast"
     # 접촉 솔버는 여러 물체가 겹치지 않게 밀어내는 힘을 계산한다. Newton 방식으로 반복해서 푼다.
     solver: str = "newton"
-    iterations: int = 10  # 한 스텝에 허용할 반복 횟수. 로컬 booster_mjlab과 같다.
+    iterations: int = 10  # 한 스텝에 허용할 반복 횟수. wirlwind 팀 코드와 같다.
     ls_iterations: int = 20
     tolerance: float = 1e-8
 

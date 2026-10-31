@@ -19,7 +19,7 @@ from goalkeeper_mjlab.tasks.goalkeeper.config.k1.motor_scene_cfg import Stage2Sc
 
 def configuration_report(sim: MotorSimulation) -> dict:
     m, p, cfg = sim.model, sim.parameters, sim.cfg
-    # 기준 숫자도 함께 배포한 JSON에서 읽는다. 기록된 GitHub URL에 접속하거나 원본 폴더를 열지 않는다.
+    # 기준 숫자도 함께 배포한 JSON에서 읽는다. 기록된 GitHub URL에 접속하거나 참조 저장소 폴더를 열지 않는다.
     reference = json.loads((PACKAGE_ROOT / "robots/k1/motor_reference.json").read_text(encoding="utf-8"))
     expected = reference["official_motors" if cfg.motor_source == "official" else "local_reference_motors"]
     assets = verify_source_assets()
@@ -79,7 +79,7 @@ def torque_probe(cfg: Stage2SceneCfg) -> dict:
             sim.data.qvel[sim.dof_ids] = sign * speed
             target = sim.joint_limits[:, 1 if sign > 0 else 0].copy()
             sim.set_target(target)
-            # 코어의 clip 구현과 독립적으로, 원본의 세 구간을 직접 계산해 기대값을 만든다.
+            # 코어의 clip 구현과 독립적으로, Booster 공식 코드의 세 구간을 직접 계산해 기대값을 만든다.
             fraction = np.ones(22)
             ramp = (speed > p.knee_speed) & (speed < p.max_speed)
             fraction[ramp] = (p.max_speed[ramp] - speed[ramp]) / (p.max_speed[ramp] - p.knee_speed[ramp])

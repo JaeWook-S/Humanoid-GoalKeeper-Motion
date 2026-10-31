@@ -1,5 +1,5 @@
 """
-    WirlWind 골대 설정
+    wirlwind 팀 코드에서 가져온 골대 설정
 """
 
 from __future__ import annotations
@@ -13,13 +13,13 @@ from goalkeeper_mjlab.assets import load_model_spec
 
 GOAL_XML = Path(__file__).parent / "xmls" / "goal.xml"
 
-# 출처: booster_mjlab/environment/goal/goal_constants.py의 DIVISION_SCALE.
-# 원본 small 모델의 바깥 폭은 약 180 cm다. '원하는 폭 / 원본 폭'이 아래 확대 배율이다.
+# 출처: wirlwind 팀 코드의 environment/goal/goal_constants.py에 있는 DIVISION_SCALE.
+# wirlwind의 small 골대 모델의 바깥 폭은 약 180 cm다. '원하는 폭 / 참조 모델 폭'이 아래 확대 배율이다.
 # small: 약 180 x 120 cm, mid: 약 240 x 160 cm, large: 약 300 x 200 cm.
 # 폭뿐 아니라 높이·깊이·기둥 두께도 같은 비율로 커진다.
 DIVISION_SCALES = {"small": 1.0, "mid": 240 / 180, "large": 300 / 180}
 
-# 원본 XML의 충돌용 박스 11개에, 어떤 기둥인지 알아볼 수 있는 이름을 붙인다.
+# wirlwind 골대 XML의 충돌용 박스 11개에, 어떤 기둥인지 알아볼 수 있는 이름을 붙인다.
 # negative_x/positive_x는 골대 파일 자체의 X 좌표가 작은 쪽/큰 쪽을 뜻한다.
 # 장면에 넣을 때 골대를 회전하므로 로봇 기준의 왼쪽/오른쪽과 이름을 바로 대응시키지 않는다.
 _COLLISION_NAMES = (
@@ -49,7 +49,7 @@ class GoalCfg:
 
     @property
     def scale(self) -> float:
-        """원본 모양을 몇 배로 키울지 반환한다. 예: mid는 240/180, 약 1.333배다."""
+        """wirlwind 골대 모양을 몇 배로 키울지 반환한다. 예: mid는 240/180, 약 1.333배다."""
         return DIVISION_SCALES[self.division]
 
 
@@ -64,7 +64,7 @@ class GoalOpening:
 
 
 def get_spec(cfg: GoalCfg = GoalCfg()) -> mujoco.MjSpec:
-    """원본 골대의 겉모양과 충돌용 기둥들을 함께 확대해 MuJoCo에 전달한다."""
+    """wirlwind 골대의 겉모양과 충돌용 기둥들을 함께 확대해 MuJoCo에 전달한다."""
     spec = load_model_spec(GOAL_XML)
     root = spec.worldbody.bodies[0]
     # frame은 골대 전체를 묶는 본체 이름이다. 장면에 붙인 뒤에는 goal/frame으로 찾을 수 있다.
@@ -76,7 +76,7 @@ def get_spec(cfg: GoalCfg = GoalCfg()) -> mujoco.MjSpec:
     for mesh in spec.meshes:
         mesh.scale = (cfg.scale,) * 3
     # 골대 전체 모양을 하나의 충돌 물체로 처리하면, 빈 골문까지 막힌 것으로 계산될 수 있다.
-    # 원본은 기둥/연결대마다 단순한 박스 11개를 두어 골문 가운데를 비워 둔다.
+    # wirlwind 팀 코드는 기둥/연결대마다 단순한 박스 11개를 두어 골문 가운데를 비워 둔다.
     # contype/conaffinity는 충돌 허용 설정이며, 둘 중 하나라도 켜진 도형을 아래에서 선택한다.
     colliders = [g for g in root.geoms if g.contype or g.conaffinity]
     if len(colliders) != len(_COLLISION_NAMES):
@@ -89,12 +89,12 @@ def get_spec(cfg: GoalCfg = GoalCfg()) -> mujoco.MjSpec:
         # 화면만 커지고 충돌 기둥은 작게 남는 일이 없도록, 박스도 같은 비율로 키운다.
         # pos는 각 박스의 중심 위치다. 위치까지 확대해야 양쪽 기둥 사이 거리도 함께 늘어난다.
         geom.pos = tuple(float(x) * cfg.scale for x in geom.pos)
-        # 원본 11개는 모두 박스다. MuJoCo 박스의 size에는 가로·세로·높이의 절반이 들어 있다.
+        # wirlwind 골대의 충돌 도형 11개는 모두 박스다. MuJoCo 박스의 size에는 가로·세로·높이의 절반이 들어 있다.
         # 예: size의 폭 성분이 0.05 m이면 그 박스의 전체 두께는 0.10 m다.
         geom.size = tuple(float(x) * cfg.scale for x in geom.size)
     for geom in root.geoms:
         if geom.meshname:
-            # visual은 화면용 모양이다. 원본 XML에서 충돌을 끄고, 충돌 계산은 위 박스들이 맡는다.
+            # visual은 화면용 모양이다. wirlwind 골대 XML에서 충돌을 끄고, 충돌 계산은 위 박스들이 맡는다.
             geom.name = "visual"
     return spec
 
@@ -103,7 +103,7 @@ def get_opening(cfg: GoalCfg = GoalCfg()) -> GoalOpening:
     """공이 지나갈 입구의 빈 공간을 기둥 안쪽 면에서 계산한다. 높이는 골대 바닥 기준이다."""
     spec = get_spec(cfg)
     left, right, bar = (spec.geom(n) for n in ("post_negative_x", "post_positive_x", "crossbar"))
-    # 원본의 약 1.8 x 1.2 m에는 기둥 두께가 포함되어 있다.
+    # wirlwind 골대 모델의 약 1.8 x 1.2 m에는 기둥 두께가 포함되어 있다.
     # 각 기둥의 중심(pos)과 반쪽 두께(size)로, 골문 쪽을 향한 안쪽 면의 위치를 구한다.
     # X가 작은 기둥의 안쪽 면 = 중심 + 반쪽 두께, X가 큰 기둥의 안쪽 면 = 중심 - 반쪽 두께.
     inner_width = (right.pos[0] - right.size[0]) - (left.pos[0] + left.size[0])
