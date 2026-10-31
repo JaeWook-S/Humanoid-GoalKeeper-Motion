@@ -1,0 +1,90 @@
+# Python 실행·분석 캐시
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.pytype/
+.hypothesis/
+.tox/
+.nox/
+.cache/
+.ipynb_checkpoints/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+
+# 컴퓨터마다 따로 만드는 가상환경·패키지 빌드 결과
+.venv/
+venv/
+env/
+ENV/
+__pypackages__/
+build/
+dist/
+*.egg-info/
+.eggs/
+*.egg
+*.whl
+pip-wheel-metadata/
+
+# 학습 로그·실험 기록·검사/내보내기 결과
+log/
+logs/
+runs/
+wandb/
+.wandb/
+tensorboard/
+tb_logs/
+lightning_logs/
+mlruns/
+.hydra/
+output/
+outputs/
+results/
+artifacts/
+*.log
+*.log.*
+*.out
+*.err
+events.out.tfevents.*
+
+# 학습한 가중치·체크포인트·정책 내보내기 파일
+checkpoints/
+*.pt
+*.pth
+*.ckpt
+*.onnx
+*.safetensors
+
+# GPU/JIT 컴파일 캐시
+.torch/
+.triton/
+.nv/
+warp_cache/
+
+# 개인 환경 변수. 공유용 예제 파일은 Git에 포함한다.
+.env
+.env.*
+!.env.example
+!.env.*.example
+!.env.sample
+!.env.template
+
+# OS·에디터의 개인 설정과 임시 파일
+.DS_Store
+._*
+Thumbs.db
+Desktop.ini
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+*.tmp
+*.temp
+*.bak
+
+# XML/STL/OBJ, JSON/YAML 설정, 문서, uv.lock은 소스이므로 제외하지 않는다.
