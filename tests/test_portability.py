@@ -11,6 +11,23 @@ import unittest
 
 
 class PortabilityTests(unittest.TestCase):
+    def test_training_configuration_does_not_import_validation(self):
+        project = Path(__file__).resolve().parents[1]
+        code = """
+import sys
+from mjlab.envs import ManagerBasedRlEnvCfg
+from goalkeeper_mjlab.tasks.goalkeeper.config.k1.env_cfgs import make_goalkeeper_env_cfg
+cfg = make_goalkeeper_env_cfg(num_envs=2)
+assert type(cfg) is ManagerBasedRlEnvCfg
+assert not any(name.startswith('goalkeeper_mjlab.validation') for name in sys.modules)
+assert not any(name.startswith('goalkeeper_mjlab.scripts') for name in sys.modules)
+assert cfg.scene.num_envs == 2
+"""
+        result = subprocess.run([sys.executable, "-B", "-c", code], cwd=project,
+            env={**os.environ, "PYTHONPATH": str(project / "src"), "PYTHONDONTWRITEBYTECODE": "1"},
+            text=True, capture_output=True, timeout=30)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_standalone_copy_runs_offline_without_original_repositories(self):
         project = Path(__file__).resolve().parents[1]
         with tempfile.TemporaryDirectory(prefix="goalkeeper-portability-") as directory:
@@ -55,7 +72,7 @@ runpy.run_path(entry, run_name='__main__')
 """
             env = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
             env["PYTHONDONTWRITEBYTECODE"] = "1"
-            for args in (["--stage", "1"], ["--check-motors", "--hold-seconds", "1"]):
+            for args in (["--mode", "geometry"], ["--check-motors", "--hold-seconds", "1"]):
                 with self.subTest(args=args):
                     result = subprocess.run(
                         [sys.executable, "-c", guard, json.dumps([str(p) for p in blocked]),

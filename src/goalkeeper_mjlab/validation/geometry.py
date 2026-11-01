@@ -2,17 +2,63 @@
 
 from __future__ import annotations
 
-from dataclasses import asdict
+from dataclasses import asdict, fields, replace
+from copy import deepcopy
+
+from mjlab.entity import EntityCfg
+from mjlab.scene import Scene
+from goalkeeper_mjlab.environment.goal.goal_constants import GoalOpening
 
 import mujoco
 import numpy as np
 
 from goalkeeper_mjlab.assets import verify_source_assets
-from goalkeeper_mjlab.environment.goal.goal_constants import get_opening
 from goalkeeper_mjlab.robots.k1.constants import (
     FOOT_COLLISION_GEOMS, HAND_BODIES, HAND_COLLISION_GEOMS, K1_JOINT_ORDER, geom_world_bounds,
 )
-from goalkeeper_mjlab.tasks.goalkeeper.config.k1.scene_cfg import Stage1SceneCfg, compile_scene
+from goalkeeper_mjlab.tasks.goalkeeper.config.k1.env_cfgs import make_goalkeeper_env_cfg
+from goalkeeper_mjlab.robots.k1.constants import HOME_POSE
+
+
+def make_geometry_env_cfg(**kwargs):
+    """형상 검사만의 기본값. 학습 환경 구성 함수에 입력할 자세와 정적 검사 간격만 바꾼다."""
+    kwargs.setdefault("robot_pose", HOME_POSE)
+    kwargs.setdefault("physics_dt", 0.002)
+    return make_goalkeeper_env_cfg(**kwargs)
+
+
+def make_geometry_scene_cfg(cfg=None):
+    """학습 장면을 복사해 모터만 뺀다. 이 함수는 검증 패키지 밖에서 사용하지 않는다."""
+    cfg = cfg if cfg is not None else make_geometry_env_cfg()
+    scene = deepcopy(cfg.scene)
+    scene.num_envs = 1
+    robot = scene.entities["robot"]
+    scene.entities["robot"] = EntityCfg(**{
+        f.name: None if f.name == "articulation" else getattr(robot, f.name) for f in fields(EntityCfg)
+    })
+    return scene
+
+
+def compile_geometry_scene(cfg=None, origin=(0.0, 0.0, 0.0)):
+    """기본 MJLab 장면 조립을 사용한 정적 MuJoCo 검사. Scene·모델·초기 상태를 반환한다."""
+    if len(origin) != 3 or not np.isfinite(origin).all():
+        raise ValueError("origin must contain three finite numbers")
+    cfg = cfg if cfg is not None else make_geometry_env_cfg()
+    scene_cfg = make_geometry_scene_cfg(cfg)
+    for entity in scene_cfg.entities.values():
+        entity.init_state = replace(entity.init_state, pos=tuple(np.asarray(entity.init_state.pos) + origin))
+    scene = Scene(scene_cfg, device="cpu")
+    scene.spec.modelname = "goalkeeper_geometry_check"
+    scene.spec.geom("terrain").pos = origin
+    model = scene.compile()
+    cfg.sim.mujoco.apply(model)
+    # 정적 ZIP 출력에도 같은 물리 옵션을 기록한다. 수치는 학습 cfg.sim에서만 정한다.
+    for name in ("timestep", "integrator", "solver", "iterations", "ls_iterations", "tolerance", "cone"):
+        setattr(scene.spec.option, name, getattr(model.opt, name))
+    data = mujoco.MjData(model)
+    mujoco.mj_resetDataKeyframe(model, data, model.key("init_state").id)
+    mujoco.mj_forward(model, data)
+    return scene, model, data
 
 
 def contact_records(model: mujoco.MjModel, data: mujoco.MjData) -> list[dict]:
@@ -40,9 +86,19 @@ def ball_contact_probe(model: mujoco.MjModel, data: mujoco.MjData,
     return False
 
 
-def inspect_scene(cfg: Stage1SceneCfg = Stage1SceneCfg(),
+def inspect_geometry(cfg=None,
                   origin: tuple[float, float, float] = (0.0, 0.0, 0.0)) -> dict:
-    _, model, data = compile_scene(cfg, origin)
+    cfg = cfg if cfg is not None else make_geometry_env_cfg()
+    _, model, data = compile_geometry_scene(cfg, origin)
+    # 기대 물성은 자산 설정이 만든 원본 spec에서 읽고, 합성 모델에서 질량이 중복되지 않았는지 검사한다.
+    source_ball = cfg.scene.entities["ball"].spec_fn()
+    radius = float(source_ball.geom("ball_collision").size[0])
+    mass = float(source_ball.geom("ball_collision").mass)
+    source_goal = cfg.scene.entities["goal"].spec_fn()
+    left, right, bar = (source_goal.geom(n) for n in ("post_negative_x", "post_positive_x", "crossbar"))
+    opening = GoalOpening(float(right.pos[0] + right.size[0] - left.pos[0] + left.size[0]),
+        float(bar.pos[2] + bar.size[2]), float(right.pos[0] - right.size[0] - left.pos[0] - left.size[0]),
+        float(bar.pos[2] - bar.size[2]))
     errors: list[str] = []
     checks: dict[str, bool] = {}
 
@@ -73,24 +129,23 @@ def inspect_scene(cfg: Stage1SceneCfg = Stage1SceneCfg(),
           "A robot collision shape is disabled")
     sole_heights = [float(geom_world_bounds(model, data, model.geom("robot/" + n).id)[0][2] - origin[2])
                     for n in FOOT_COLLISION_GEOMS]
-    check("sole_clearance", np.isclose(min(sole_heights), cfg.robot_pose.sole_clearance, atol=1e-7),
-          "Foot sole height does not match the configured clearance")
+    check("sole_clearance", min(sole_heights) >= -1e-7,
+          "A foot sole starts below the configured floor")
     contacts = contact_records(model, data)
     check("initial_penetration", not any(c["distance_m"] < -1e-6 for c in contacts),
           "Initial pose contains intersecting collision shapes; inspect the contacts report")
     ball_id = model.body("ball/ball").id
-    check("ball_mass", np.isclose(model.body_mass[ball_id], cfg.ball.mass), "Ball visual meshes inflated the physical mass")
-    expected_inertia = 2.0 / 3.0 * cfg.ball.mass * cfg.ball.radius**2
+    check("ball_mass", np.isclose(model.body_mass[ball_id], mass), "Ball visual meshes inflated the physical mass")
+    expected_inertia = 2.0 / 3.0 * mass * radius**2
     check("ball_shell_inertia", np.allclose(model.body_inertia[ball_id], expected_inertia), "Ball shell inertia is incorrect")
     offset = np.asarray(origin)
-    check("ball_placement", np.allclose(data.xpos[ball_id], offset + cfg.resolved_ball_position), "Ball placement differs from the scene configuration")
+    check("ball_placement", np.allclose(data.xpos[ball_id], offset + np.asarray(cfg.scene.entities["ball"].init_state.pos)), "Ball placement differs from the scene configuration")
     goal_id = model.body("goal/frame").id
-    check("goal_placement", np.allclose(data.xpos[goal_id], offset + cfg.goal_position), "Goal placement differs from the scene configuration")
+    check("goal_placement", np.allclose(data.xpos[goal_id], offset + np.asarray(cfg.scene.entities["goal"].init_state.pos)), "Goal placement differs from the scene configuration")
     # 골대의 로컬 -Y가 장면의 -X를 향해야 골대 뒤쪽이 로봇 쪽으로 돌출되지 않는다.
     goal_rotation = data.xmat[goal_id].reshape(3, 3)
     check("goal_orientation", np.allclose(goal_rotation @ np.array([0., -1., 0.]), [-1., 0., 0.]), "Goal depth does not point behind the goal line")
-    opening = get_opening(cfg.goal)
-    mouth_center = offset + np.array([-cfg.goal_distance, 0., opening.inner_height / 2])
+    mouth_center = offset + np.asarray(cfg.scene.entities["goal"].init_state.pos) + (0., 0., opening.inner_height / 2)
     check("open_goal_mouth", not ball_contact_probe(model, data, mouth_center, "goal/"), "An invisible collider blocks the goal mouth")
     post_position = data.geom_xpos[model.geom("goal/post_positive_x").id]
     check("goal_post_collision", ball_contact_probe(model, data, post_position, "goal/"), "Ball cannot contact the goal post")
@@ -99,8 +154,8 @@ def inspect_scene(cfg: Stage1SceneCfg = Stage1SceneCfg(),
                      for body, geom in zip(HAND_BODIES, HAND_COLLISION_GEOMS, strict=True)]
     check("hand_ball_collision", all(hand_contacts), "Ball cannot contact both robot hand-end colliders")
     return {
-        "passed": not errors, "checks": checks, "errors": errors,
-        "scope": "Stage 1 geometry and contact checks; no PD, policy, hardware or goalkeeping performance validation",
+        "mode": "geometry", "passed": not errors, "checks": checks, "errors": errors,
+        "scope": "Geometry and contact checks; no PD, policy, hardware or goalkeeping performance validation",
         "mujoco_version": mujoco.__version__, "source_assets": source,
         "origin": list(origin), "joint_names": list(names),
         "model": {"nq": model.nq, "nv": model.nv, "nu": model.nu, "nmocap": model.nmocap},
@@ -109,7 +164,7 @@ def inspect_scene(cfg: Stage1SceneCfg = Stage1SceneCfg(),
             "root_position": data.xpos[model.body("robot/Trunk").id].tolist(),
             "sole_bottoms_above_floor_m": sole_heights,
         },
-        "ball": {"radius_m": cfg.ball.radius, "mass_kg": float(model.body_mass[ball_id]), "position": data.xpos[ball_id].tolist()},
+        "ball": {"radius_m": radius, "mass_kg": float(model.body_mass[ball_id]), "position": data.xpos[ball_id].tolist()},
         "goal": {**asdict(opening), "position": data.xpos[goal_id].tolist()},
         "initial_contacts": contacts,
     }

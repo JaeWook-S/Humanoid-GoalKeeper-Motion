@@ -1,7 +1,5 @@
-"""1단계의 실제 MuJoCo 모델·접촉·자산 패키징 회귀 검사. unittest만 사용한다."""
+"""검증 전용 형상·접촉·자산 패키징 회귀 검사."""
 
-from dataclasses import replace
-import importlib.util
 import io
 import json
 import os
@@ -20,29 +18,28 @@ from goalkeeper_mjlab import PACKAGE_ROOT
 from goalkeeper_mjlab.assets import validate_model_assets, verify_source_assets
 from goalkeeper_mjlab.environment.ball.ball_constants import BallCfg, get_spec as ball_spec
 from goalkeeper_mjlab.environment.goal.goal_constants import GoalCfg, get_opening, get_spec as goal_spec
-from goalkeeper_mjlab.inspection import inspect_scene
+from goalkeeper_mjlab.validation.geometry import inspect_geometry, compile_geometry_scene, make_geometry_env_cfg, make_geometry_scene_cfg
 from goalkeeper_mjlab.robots.k1.constants import K1_XML, RobotPoseCfg, get_spec as robot_spec
 from goalkeeper_mjlab.scripts.inspect_scene import main
-from goalkeeper_mjlab.tasks.goalkeeper.config.k1.scene_cfg import Stage1SceneCfg, compile_scene, make_mjlab_scene_cfg
 
 
-class Stage1Tests(unittest.TestCase):
+class GeometryTests(unittest.TestCase):
     def test_native_scene_contract_and_contacts(self):
-        report = inspect_scene()
+        report = inspect_geometry()
         self.assertTrue(report["passed"], report["errors"])
         self.assertTrue(all(report["checks"].values()))
         self.assertEqual(report["model"], {"nq": 36, "nv": 34, "nu": 0, "nmocap": 1})
 
     def test_world_translation_preserves_relative_placement(self):
         # 지면 높이까지 바꿔 원점 처리가 XY에만 적용되는 실수를 잡는다.
-        first = inspect_scene()
+        first = inspect_geometry()
         origin = np.array([3.0, -2.0, 0.4])
-        second = inspect_scene(origin=tuple(origin))
+        second = inspect_geometry(origin=tuple(origin))
         self.assertTrue(second["passed"], second["errors"])
         for name, field in (("robot", "root_position"), ("ball", "position"), ("goal", "position")):
             np.testing.assert_allclose(np.array(second[name][field]) - origin, first[name][field], atol=1e-8)
         np.testing.assert_allclose(first["robot"]["sole_bottoms_above_floor_m"], second["robot"]["sole_bottoms_above_floor_m"], atol=1e-8)
-        _, model, data = compile_scene(origin=tuple(origin))
+        _, model, data = compile_geometry_scene(origin=tuple(origin))
         np.testing.assert_allclose(data.site_xpos[model.site("goal/goal_line_center").id],
                                    origin + (-0.75, 0., get_opening().inner_height / 2))
 
@@ -68,7 +65,7 @@ class Stage1Tests(unittest.TestCase):
             self.assertAlmostEqual(opening.inner_width, base.inner_width * scale)
             self.assertAlmostEqual(opening.inner_height, base.inner_height * scale)
             self.assertTrue(spec.worldbody.bodies[0].mocap)
-            self.assertTrue(inspect_scene(replace(Stage1SceneCfg(), goal=cfg))["passed"])
+            self.assertTrue(inspect_geometry(make_geometry_env_cfg(goal=cfg))["passed"])
 
     def test_model_specs_are_fresh_and_do_not_share_edits(self):
         first, second = robot_spec(), robot_spec()
@@ -82,12 +79,12 @@ class Stage1Tests(unittest.TestCase):
         for action in (
             lambda: RobotPoseCfg(joint_pos=(0.,)),
             lambda: RobotPoseCfg().with_joint_overrides({"unknown_joint": 0.}),
-            lambda: compile_scene(replace(Stage1SceneCfg(), robot_pose=RobotPoseCfg().with_joint_overrides({"Head_Yaw": 100.}))),
+            lambda: compile_geometry_scene(make_geometry_env_cfg(robot_pose=RobotPoseCfg().with_joint_overrides({"Head_Yaw": 100.}))),
             lambda: BallCfg(4.0), lambda: BallCfg(True), lambda: BallCfg(0),
             lambda: BallCfg(radius_override=-0.1), lambda: BallCfg(mass_override=np.nan),
-            lambda: Stage1SceneCfg(ball_position=(0., 0., None)),
-            lambda: Stage1SceneCfg(ball_position=(2., 0., 0.01)),
-            lambda: Stage1SceneCfg(goal_distance=np.inf), lambda: Stage1SceneCfg(num_envs=0),
+            lambda: make_geometry_env_cfg(ball_position=(0., 0., None)),
+            lambda: make_geometry_env_cfg(ball_position=(2., 0., 0.01)),
+            lambda: make_geometry_env_cfg(goal_distance=np.inf), lambda: make_geometry_env_cfg(num_envs=0),
         ):
             with self.subTest(action=action):
                 with self.assertRaises(ValueError):
@@ -109,11 +106,10 @@ class Stage1Tests(unittest.TestCase):
                 self.assertEqual(verify_source_assets()["mismatches"], ["missing.stl"])
 
     def test_export_contains_assets_and_round_trips(self):
-        spec, model, data = compile_scene()
+        scene, model, data = compile_geometry_scene()
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "scene.zip"
-            with path.open("wb") as file:
-                spec.to_zip(file)
+            scene.write(path.with_suffix(""), zip=True)
             with path.open("rb") as file:
                 loaded = mujoco.MjSpec.from_zip(file).compile()
             self.assertEqual((loaded.nq, loaded.nv, loaded.nmesh), (model.nq, model.nv, model.nmesh))
@@ -122,7 +118,7 @@ class Stage1Tests(unittest.TestCase):
 
     def test_passive_ball_fall_reaches_floor_without_nonfinite_state(self):
         # 슈팅 태스크가 아니라 공/바닥의 기본 접촉 검사다.
-        _, model, data = compile_scene(replace(Stage1SceneCfg(), ball_position=(2., 0., 0.7)))
+        _, model, data = compile_geometry_scene(make_geometry_env_cfg(ball_position=(2., 0., 0.7)))
         for _ in range(300):
             mujoco.mj_step(model, data)
         self.assertTrue(np.isfinite(data.qpos).all() and np.isfinite(data.qvel).all())
@@ -160,13 +156,12 @@ class Stage1Tests(unittest.TestCase):
             self.assertEqual(completed.returncode, 0, completed.stderr)
             self.assertTrue(json.loads(completed.stdout)["passed"])
 
-    @unittest.skipUnless(importlib.util.find_spec("mjlab"), "MJLab is not installed in this interpreter")
     def test_mjlab_scene_compiles_with_matching_initial_state(self):
         from mjlab.scene import Scene
-        cfg = Stage1SceneCfg()
-        scene = Scene(make_mjlab_scene_cfg(cfg), device="cpu")
+        cfg = make_geometry_env_cfg()
+        scene = Scene(make_geometry_scene_cfg(cfg), device="cpu")
         model = scene.compile()
-        _, native, data = compile_scene(cfg)
+        _, native, data = compile_geometry_scene(cfg)
         self.assertEqual((model.nq, model.nv, model.nu, model.nmocap), (native.nq, native.nv, native.nu, native.nmocap))
         np.testing.assert_allclose(model.key("init_state").qpos, data.qpos)
 

@@ -1,5 +1,5 @@
-"""K1 모델 API. 모터 설정 모듈은 아직 연결하지 않는다."""
+"""wirlwind처럼 K1 공통 설정과 로봇 생성 함수를 노출한다."""
 
-from .constants import K1_JOINT_ORDER, RobotPoseCfg, get_spec
+from .constants import K1_JOINT_ORDER, RobotPoseCfg, get_k1_robot_cfg, get_spec
 
-__all__ = ["K1_JOINT_ORDER", "RobotPoseCfg", "get_spec"]
+__all__ = ["K1_JOINT_ORDER", "RobotPoseCfg", "get_k1_robot_cfg", "get_spec"]

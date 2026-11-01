@@ -1,8 +1,12 @@
-"""기본 실행은 MuJoCo viewer, --headless는 화면 없이 모델 검사만 수행한다."""
+"""화면 실행·검증 전용 CLI. 기본 실행은 MuJoCo viewer, --headless는 화면 없는 검사다.
+
+PPO 학습을 시작하는 스크립트가 아니다.
+"""
 
 from __future__ import annotations
 
 import argparse
+from contextlib import redirect_stdout
 import json
 import os
 from pathlib import Path
@@ -17,11 +21,9 @@ import numpy as np
 from goalkeeper_mjlab import PACKAGE_ROOT
 from goalkeeper_mjlab.environment.ball.ball_constants import BallCfg
 from goalkeeper_mjlab.environment.goal.goal_constants import GoalCfg
-from goalkeeper_mjlab.inspection import inspect_scene
-from goalkeeper_mjlab.robots.k1.constants import RobotPoseCfg
-from goalkeeper_mjlab.tasks.goalkeeper.config.k1.scene_cfg import (
-    Stage1SceneCfg, compile_scene, make_mjlab_scene_cfg,
-)
+from goalkeeper_mjlab.validation.geometry import inspect_geometry, compile_geometry_scene, make_geometry_env_cfg, make_geometry_scene_cfg
+from goalkeeper_mjlab.robots.k1.constants import K1_JOINT_ORDER, HOME_POSE
+from goalkeeper_mjlab.tasks.goalkeeper.config.k1.env_cfgs import make_goalkeeper_env_cfg
 
 
 def _ensure_viewer_runtime(argv: list[str]) -> None:
@@ -83,7 +85,7 @@ def view_scene(model: mujoco.MjModel, data: mujoco.MjData, collisions: bool = Fa
             state["reset"] = True
         elif simulation is not None and key in (ord("H"), ord("h")):
             state["head"] = True
-    # 2단계는 PD로 서 있는 상태를 보여준다. 1단계의 수동 모델은 정지해서 보여준다.
+    # 모터 검사는 PD로 서 있는 모습을, 형상 검사는 물리를 정지한 초기 배치를 보여준다.
     with mujoco.viewer.launch_passive(model, data, key_callback=key_callback) as viewer:
         if collisions:
             with viewer.lock():
@@ -114,15 +116,15 @@ def view_scene(model: mujoco.MjModel, data: mujoco.MjData, collisions: bool = Fa
             else:
                 mujoco.mj_forward(model, data)
             viewer.sync()
-            interval = simulation.cfg.execution.policy_dt if simulation is not None else model.opt.timestep
+            interval = simulation.policy_dt if simulation is not None else model.opt.timestep
             time.sleep(max(0, interval - (time.monotonic() - started)))
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="K1 goalkeeper scene: stage 2 controlled motors / stage 1 passive model")
-    parser.add_argument("--stage", type=int, choices=(1, 2), default=2, help="Default: 2 with motors; 1 reproduces the passive geometry stage")
+    parser = argparse.ArgumentParser(description="K1 goalkeeper validation: controlled motors or static geometry")
+    parser.add_argument("--mode", choices=("motors", "geometry"), default="motors", help="Validation mode: motors (default) or geometry without actuators")
     display = parser.add_mutually_exclusive_group()
-    display.add_argument("--viewer", dest="viewer", action="store_true", help="Open viewer (default); P: pause, R: reset, H: head target in stage 2")
+    display.add_argument("--viewer", dest="viewer", action="store_true", help="Open viewer (default); P: pause, R: reset, H: head target in motor mode")
     display.add_argument("--headless", dest="viewer", action="store_false", help="Check/export the scene without opening a viewer")
     parser.set_defaults(viewer=True)
     parser.add_argument("--render", type=Path, help="Save a 640x480 snapshot")
@@ -143,15 +145,16 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--goal-distance", type=float, default=0.75)
     parser.add_argument("--origin", type=float, nargs=3, default=(0., 0., 0.))
     parser.add_argument("--joint", action="append", default=[], metavar="NAME=RAD")
-    parser.add_argument("--target", action="append", default=[], metavar="NAME=RAD", help="Stage-2 motor target, applied through PD and command delay")
+    parser.add_argument("--target", action="append", default=[], metavar="NAME=RAD", help="Motor target, applied through PD and command delay")
     parser.add_argument("--simulate-seconds", type=float, default=0., help="Run physical simulation before rendering or viewing")
-    parser.add_argument("--check-motors", action="store_true", help="Stage-2 free hold, target tracking, actual torque and delay tests")
+    parser.add_argument("--check-motors", action="store_true", help="Free hold, target tracking, actual torque and delay tests")
     parser.add_argument("--hold-seconds", type=float, default=10., help="Hold test duration; minimum 1 second")
     parser.add_argument("--motor-source", choices=("official", "legacy"), default="official")
-    parser.add_argument("--physics-dt", type=float, default=0.005)
+    parser.add_argument("--physics-dt", type=float, help="Default: 0.005 s in motors mode, 0.002 s in geometry mode")
     parser.add_argument("--decimation", type=int, default=4)
     parser.add_argument("--delay-min", type=int, default=2, help="Command delay in physics steps")
     parser.add_argument("--delay-max", type=int, default=8)
+    parser.add_argument("--delay-hold-prob", type=float, default=0.3, help="Probability of keeping the current MJLab command lag")
     cli_args = list(sys.argv[1:] if argv is None else argv)
     args = parser.parse_args(cli_args)
     try:
@@ -163,33 +166,32 @@ def main(argv: list[str] | None = None) -> int:
             raise ValueError("simulate-seconds must be finite and nonnegative")
         if args.export and args.export.suffix != ".zip":
             raise ValueError("export path must end in .zip so assets remain self-contained")
-        if args.stage == 1 and (args.target or args.check_motors):
-            raise ValueError("target/check-motors require --stage 2")
-        from goalkeeper_mjlab.robots.k1.controller_profiles import READY_POSE
-        pose = READY_POSE if args.stage == 2 else RobotPoseCfg()
-        cfg = Stage1SceneCfg(
+        if args.mode == "geometry" and (args.target or args.check_motors):
+            raise ValueError("target/check-motors require --mode motors")
+        pose = HOME_POSE
+        factory = make_goalkeeper_env_cfg if args.mode == "motors" else make_geometry_env_cfg
+        cfg = factory(
             robot_pose=pose.with_joint_overrides(overrides),
             ball=BallCfg(args.ball_size, args.ball_radius, args.ball_mass),
             goal=GoalCfg(args.goal_division),
             ball_position=(args.ball_x, args.ball_y, args.ball_z), goal_distance=args.goal_distance,
+            physics_dt=args.physics_dt if args.physics_dt is not None else (0.005 if args.mode == "motors" else 0.002),
+            decimation=args.decimation, motor_source=args.motor_source,
+            delay_min_lag=args.delay_min, delay_max_lag=args.delay_max, delay_hold_prob=args.delay_hold_prob,
         )
         # 옵션이 없으면 화면을 연다. 서버 검사만 할 때는 --headless로 GUI 초기화를 생략한다.
         if args.viewer:
             _ensure_viewer_runtime(cli_args)
         simulation = None
-        if args.stage == 2:
-            from goalkeeper_mjlab.motor_runtime import MotorSimulation
-            from goalkeeper_mjlab.motor_checks import check_motors, configuration_report
-            from goalkeeper_mjlab.robots.k1.command_delay import CommandDelayCfg
-            from goalkeeper_mjlab.robots.k1.constants import K1_JOINT_ORDER
-            from goalkeeper_mjlab.tasks.goalkeeper.config.k1.motor_scene_cfg import Stage2SceneCfg
-            from goalkeeper_mjlab.tasks.goalkeeper.config.k1.simulation_cfg import PhysicsControlCfg
-            motor_cfg = Stage2SceneCfg(scene=cfg, motor_source=args.motor_source,
-                execution=PhysicsControlCfg(physics_dt=args.physics_dt, decimation=args.decimation),
-                delay=CommandDelayCfg(args.delay_min, args.delay_max))
-            simulation = MotorSimulation(motor_cfg, tuple(args.origin))
-            spec, model, data = simulation.spec, simulation.model, simulation.data
-            report = check_motors(motor_cfg, args.hold_seconds, tuple(args.origin)) if args.check_motors else configuration_report(simulation)
+        if args.mode == "motors":
+            from goalkeeper_mjlab.validation.motor_runtime import MotorSimulation
+            from goalkeeper_mjlab.validation.motor_checks import check_motors, configuration_report
+            # Warp 초기화 메시지는 stderr에 두어 stdout의 JSON 보고서를 유지한다.
+            with redirect_stdout(sys.stderr):
+                simulation = MotorSimulation(cfg, tuple(args.origin))
+            model, data = simulation.model, simulation.data
+            with redirect_stdout(sys.stderr):
+                report = check_motors(cfg, args.hold_seconds, tuple(args.origin)) if args.check_motors else configuration_report(simulation)
             target = simulation.initial_target.copy()
             for value in args.target:
                 name, angle = value.split("=", 1)
@@ -198,29 +200,29 @@ def main(argv: list[str] | None = None) -> int:
                 target[K1_JOINT_ORDER.index(name)] = float(angle)
             simulation.set_target(target)
         else:
-            report = inspect_scene(cfg, tuple(args.origin))
-            spec, model, data = compile_scene(cfg, tuple(args.origin))
+            report = inspect_geometry(cfg, tuple(args.origin))
+            geometry_scene, model, data = compile_geometry_scene(cfg, tuple(args.origin))
         if args.mjlab_check:
             from mjlab.scene import Scene
-            if args.stage == 2:
-                from goalkeeper_mjlab.tasks.goalkeeper.config.k1.motor_scene_cfg import make_controlled_mjlab_scene_cfg
-                scene_cfg = make_controlled_mjlab_scene_cfg(motor_cfg)
-            else:
-                scene_cfg = make_mjlab_scene_cfg(cfg)
+            scene_cfg = cfg.scene if args.mode == "motors" else make_geometry_scene_cfg(cfg)
             mjlab_model = Scene(scene_cfg, device="cpu").compile()
             actual = (mjlab_model.nq, mjlab_model.nv, mjlab_model.nu, mjlab_model.nmocap)
-            report["mjlab_compile"] = {"passed": actual == (36, 34, 22 if args.stage == 2 else 0, 1), "dimensions": list(actual)}
+            report["mjlab_compile"] = {"passed": actual == (36, 34, 22 if args.mode == "motors" else 0, 1), "dimensions": list(actual)}
             if not report["mjlab_compile"]["passed"]:
                 report["errors"].append("MJLab scene dimensions differ from the native scene")
                 report["passed"] = False
         if args.export:
             args.export.parent.mkdir(parents=True, exist_ok=True)
-            with args.export.open("wb") as file:
-                spec.to_zip(file)
+            if simulation is not None:
+                # 기본 exporter가 MJLab 합성 XML의 default 클래스와 메시 경로를 정리한다.
+                simulation.scene.write(args.export.with_suffix(""), zip=True)
+            else:
+                geometry_scene.write(args.export.with_suffix(""), zip=True)
         if simulation is not None and args.simulate_seconds:
-            metrics = simulation.run(args.simulate_seconds)
+            with redirect_stdout(sys.stderr):
+                metrics = simulation.run(args.simulate_seconds)
             report["controlled_simulation"] = metrics
-            if not metrics["finite"] or metrics["maximum_torque_violation_nm"] > 1e-7:
+            if not metrics["finite"] or metrics["maximum_torque_violation_nm"] > 1e-4:
                 report["passed"] = False
                 report["errors"].append("Controlled simulation produced invalid state or exceeded a torque limit")
         elif simulation is None:

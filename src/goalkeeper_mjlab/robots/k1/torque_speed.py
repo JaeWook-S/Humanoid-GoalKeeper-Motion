@@ -1,49 +1,79 @@
-"""현재 회전 속도에서 허용할 힘을 계산한다. 수치는 모터/제어기 설정에서 받는다."""
-
-from __future__ import annotations
+"""학습·검증 공통: wirlwind 방식의 배치 토크-속도 제한을 실제 엔진에 적용한다."""
 
 from dataclasses import dataclass
-import numpy as np
 
-from goalkeeper_mjlab.robots.k1.constants import K1_JOINT_ORDER
-from goalkeeper_mjlab.robots.k1.controller_profiles import ControllerParameters
-from goalkeeper_mjlab.robots.k1.motor_parameters import MotorParameters, motor_group
+import torch
+from mjlab.entity import Entity, EntityCfg
+from mjlab.managers.event_manager import requires_model_fields
+
+from goalkeeper_mjlab.robots.k1.actuators import MotorPositionActuatorCfg
 
 
-@dataclass(frozen=True)
-class JointParameters:
-    armature: np.ndarray
-    peak: np.ndarray
-    max_speed: np.ndarray
-    knee_speed: np.ndarray
-    kp: np.ndarray
-    kd: np.ndarray
-    controller_cap: np.ndarray
+class TorqueSpeedLimits:
+    def __init__(self, actuators):
+        self.target_ids = torch.cat([a.target_ids for a in actuators])
+        self.ctrl_ids = torch.cat([a.global_ctrl_ids for a in actuators])
+        values = {name: [] for name in ("peak", "speed", "width", "cap")}
+        for actuator in actuators:
+            motor, control = actuator.cfg.motor, actuator.cfg.controller
+            count = actuator.target_ids.numel()
+            for name, value in (("peak", motor.peak_effort), ("speed", motor.velocity_limit),
+                                ("width", max(motor.velocity_limit - motor.effective_knee_point_velocity, 1e-6)),
+                                ("cap", control.output_limit)):
+                values[name].extend([value] * count)
+        for name, value in values.items():
+            setattr(self, name, torch.tensor(value, dtype=torch.float32, device=self.target_ids.device))
+        self.last_limit = None
+        self.last_velocity = None
 
-    @classmethod
-    def build(cls, motors: dict[str, MotorParameters], controllers: dict[str, ControllerParameters]):
-        motor = [motors[motor_group(n)] for n in K1_JOINT_ORDER]
-        control = [controllers[motor_group(n)] for n in K1_JOINT_ORDER]
-        return cls(*(np.asarray(values, dtype=float) for values in (
-            [m.armature for m in motor], [m.peak_effort for m in motor],
-            [m.velocity_limit for m in motor], [m.effective_knee_point_velocity for m in motor],
-            [c.kp for c in control], [c.kd for c in control], [c.output_limit for c in control],
-        )))
+    def max_effort(self, velocity):
+        # 천천히 돌 때 최대 힘, 감소 시작 속도부터 직선 감소, 최고 속도 이상에서 0이다.
+        # 현재 속도의 부호와 무관하게 같은 상한을 쓴다. 센서 피드백에는 명령 지연을 적용하지 않는다.
+        fraction = ((self.speed - velocity.abs()) / self.width).clamp(0.0, 1.0)
+        # [wirlwind와 구분] 물리 최대 토크와 프로그램 상한을 분리한다.
+        # cap에 먼저 속도 비율을 곱하면 작은 프로그램 상한에서 힘을 과도하게 줄이므로 min을 마지막에 취한다.
+        return torch.minimum(self.peak * fraction, self.cap)
 
-    def physical_limit(self, velocity: np.ndarray) -> np.ndarray:
-        # 느릴 때는 최대 힘을 쓰고, 감소 시작 속도부터 최고 속도까지는 직선으로 0까지 줄인다.
-        # 공식과 같은 단순화: 최고 속도 이상에서는 가속뿐 아니라 제동용 모터 힘도 0으로 제한한다.
-        # 1e-6은 공식과 같은 0 나눗셈 방지다. Head처럼 시작 속도=최고 속도가 되는 경우도 처리한다.
-        fraction = np.clip((self.max_speed - np.abs(velocity)) / np.maximum(self.max_speed - self.knee_speed, 1e-6), 0.0, 1.0)
-        return self.peak * fraction
+    def update(self, entity, model):
+        self.last_velocity = entity.data.joint_vel[:, self.target_ids].clone()
+        self.last_limit = self.max_effort(self.last_velocity)
+        # 숫자만 계산하지 않고 실제 엔진의 환경별 힘 제한을 갱신한다.
+        # 모델 배열 확장으로 주소가 바뀔 수 있어, bridge에서 매번 최신 배열을 읽는다.
+        model.actuator_forcerange[:, self.ctrl_ids, :] = torch.stack((-self.last_limit, self.last_limit), dim=-1)
 
-    def effective_limit(self, velocity: np.ndarray) -> np.ndarray:
-        # 먼저 모터 물리 한계를 계산한 뒤 프로그램의 상한과 비교한다.
-        # 프로그램 상한 자체에 속도 비율을 곱하면 필요 이상으로 힘을 줄이는 오류가 생긴다.
-        return np.minimum(self.controller_cap, self.physical_limit(velocity))
 
-    def command(self, target: np.ndarray, position: np.ndarray, velocity: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """늦게 도착한 목표각과 최신 각도/속도로 PD 요청값·제한 후 출력·상한을 계산한다."""
-        raw = self.kp * (target - position) - self.kd * velocity
-        limit = self.effective_limit(velocity)
-        return raw, np.clip(raw, -limit, limit), limit
+@dataclass
+class MotorEntityCfg(EntityCfg):
+    def build(self):
+        return MotorEntity(self)
+
+
+class MotorEntity(Entity):
+    _motor_limits = None
+    _motor_model = None
+
+    def write_data_to_sim(self):
+        if self._motor_limits is None or self._motor_model is None:
+            raise RuntimeError("MotorEntity requires initialize_motor_limits startup event or bind_motor_limits(scene, sim)")
+        # wirlwind와 같은 실행 위치다. 기본 actuator가 지연된 명령을 쓰고, 물리를 진행하기 전에 힘 상한을 갱신한다.
+        super().write_data_to_sim()
+        self._motor_limits.update(self, self._motor_model)
+
+
+def bind_motor_limits(scene, sim):
+    if "actuator_forcerange" not in sim.expanded_fields:
+        sim.expand_model_fields(("actuator_forcerange",))
+    for entity in scene.entities.values():
+        actuators = [a for a in entity.actuators if isinstance(a.cfg, MotorPositionActuatorCfg)]
+        if actuators:
+            if not isinstance(entity, MotorEntity):
+                raise TypeError("MotorPositionActuatorCfg requires MotorEntityCfg")
+            entity._motor_limits = TorqueSpeedLimits(actuators)
+            entity._motor_model = sim.model
+
+
+@requires_model_fields("actuator_forcerange")
+def initialize_motor_limits(env, env_ids):
+    """실제 ManagerBasedRlEnv의 startup 이벤트에 등록한다. 검사 실행기도 같은 연결 함수를 사용한다."""
+    del env_ids
+    bind_motor_limits(env.scene, env.sim)
