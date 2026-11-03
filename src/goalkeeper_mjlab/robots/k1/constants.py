@@ -30,10 +30,8 @@ K1_JOINT_ORDER = (
     "Right_Hip_Pitch", "Right_Hip_Roll", "Right_Hip_Yaw", "Right_Knee_Pitch",
     "Right_Ankle_Pitch", "Right_Ankle_Roll",
 )
-TRUNK_BODY = "Trunk"
 HAND_BODIES = ("left_hand_end_ball", "right_hand_end_ball")
 HAND_COLLISION_GEOMS = ("left_hand_end_collision", "right_hand_end_collision")
-FOOT_BODIES = ("left_foot_link", "right_foot_link")
 FOOT_COLLISION_GEOMS = ("left_foot_collision", "right_foot_collision")
 
 # 학습과 정적 검사에서 같은 수치를 사용한다. 아래 값을 공통 MJLab CollisionCfg에 전달한다.
@@ -135,13 +133,7 @@ def initial_root_height(pose: RobotPoseCfg) -> float:
     return float(-bottom + pose.sole_clearance)
 
 
-OFFICIAL_COMMIT = "83037fde138c49cd8d6459a4b592538e6e979ffb"
-OFFICIAL_BASE = f"https://github.com/BoosterRobotics/booster_train/blob/{OFFICIAL_COMMIT}/source/booster_train/booster_train/assets/robots"
-OFFICIAL_MOTOR_SOURCE = OFFICIAL_BASE + "/actuator.py"
-OFFICIAL_K1_SOURCE = OFFICIAL_BASE + "/booster_k1.py"
-LOCAL_REFERENCE_COMMIT = "d92e11395d961096d639446c0a8a176f12bb51da"
-
-
+# 모터 수치의 출처 URL·커밋과 wirlwind 대조표는 motor_reference.json에 보관한다.
 # 공식 actuator.py의 동일 모터 모델. Hip Roll의 43/12.15/8.38은 wirlwind 팀 코드의 76/12.57/2.62와 다르다. -> 확인 필요
 HEAD_MOTOR = MotorParameters(model_name="HT4438", armature=0.001, peak_effort=6.0, velocity_limit=7.85, knee_point_velocity=10.47)
 ARM_MOTOR = MotorParameters(model_name="R14", armature=0.001, peak_effort=14.0, velocity_limit=33.51, knee_point_velocity=5.24)
@@ -187,11 +179,10 @@ def get_motors(source: str = "official") -> dict[str, MotorParameters]:
 
 
 def hold_controllers() -> dict[str, ControllerParameters]:
-    # [Booster 공식과 다름] gain은 wirlwind 팀 코드의 k1_constants.py에 있는 head 4/.25, arm 10/1, leg 80/4, ankle 50/2.
     # 출력 상한은 현재 공식 모터의 저속 한계로 명시했다. Hip Roll은 wirlwind 팀 코드의 76 대신 Booster 공식 값 43이다.
     # 실물용 gain을 보증하는 설정이 아니라 현재 MJCF에서 준비 자세 유지를 검증할 설정이다.
     return {
-        "head": ControllerParameters(stiffness=4.0, damping=0.25, output_limit=6.0),
+        "head": ControllerParameters(stiffness=10.0, damping=1.2, output_limit=6.0),
         "arm": ControllerParameters(stiffness=10.0, damping=1.0, output_limit=14.0),
         "hip_pitch": ControllerParameters(stiffness=80.0, damping=4.0, output_limit=68.0),
         "hip_roll": ControllerParameters(stiffness=80.0, damping=4.0, output_limit=43.0),
@@ -200,23 +191,6 @@ def hold_controllers() -> dict[str, ControllerParameters]:
         "ankle_pitch": ControllerParameters(stiffness=50.0, damping=2.0, output_limit=38.3),
         "ankle_roll": ControllerParameters(stiffness=50.0, damping=2.0, output_limit=38.3),
     }
-
-
-def official_reference_controllers(motors: dict[str, MotorParameters]) -> dict[str, ControllerParameters]:
-    """공식 K1 gain 계산을 비교 자료로 제공한다. 현재 모델의 기본 hold 설정과 구분한다."""
-    result = {}
-    for group, motor in motors.items():
-        # 이 주파수는 공식이 gain을 계산할 때 쓰는 반응 특성이다. 정책 호출 주기 50 Hz와 다른 값이다.
-        frequency = 10.0 if group in ("head", "arm") else 4.0
-        ratio = 2.0 if group in ("head", "arm") else 1.0 if group == "knee" else 1.5
-        # 공식 소스가 사용한 pi 자리수까지 유지해 출처와 수치 대조가 가능하도록 한다.
-        omega = 2.0 * 3.1415926535 * frequency
-        result[group] = ControllerParameters(
-            stiffness=motor.armature * omega**2,
-            damping=2.0 * ratio * motor.armature * omega,
-            output_limit=motor.peak_effort,
-        )
-    return result
 
 
 # root 높이는 wirlwind의 고정 0.5125 m를 복사하지 않고, 기존 발바닥 기준 자동 계산을 유지한다.
@@ -251,9 +225,6 @@ def make_k1_articulation(*, motor_source="official", controllers=None,
         ))
 
     return EntityArticulationInfoCfg(actuators=tuple(actuators), soft_joint_pos_limit_factor=0.9)
-
-
-K1_ARTICULATION = make_k1_articulation(**ACTUATOR_DELAY)
 
 
 def get_k1_robot_cfg(*, pose=HOME_POSE, motor_source="official", controllers=None,

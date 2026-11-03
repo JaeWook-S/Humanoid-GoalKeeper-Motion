@@ -22,8 +22,8 @@ from goalkeeper_mjlab import PACKAGE_ROOT
 from goalkeeper_mjlab.environment.ball.ball_constants import BallCfg
 from goalkeeper_mjlab.environment.goal.goal_constants import GoalCfg
 from goalkeeper_mjlab.validation.geometry import inspect_geometry, compile_geometry_scene, make_geometry_env_cfg, make_geometry_scene_cfg
-from goalkeeper_mjlab.robots.k1.constants import K1_JOINT_ORDER, HOME_POSE
-from goalkeeper_mjlab.tasks.goalkeeper.config.k1.env_cfgs import make_goalkeeper_env_cfg
+from goalkeeper_mjlab.robots.k1.constants import K1_JOINT_ORDER, HOME_POSE, get_k1_robot_cfg
+from goalkeeper_mjlab.tasks.goalkeeper.config.k1.env_cfgs import goalkeeper_k1_env_cfg
 
 
 def _ensure_viewer_runtime(argv: list[str]) -> None:
@@ -85,7 +85,7 @@ def view_scene(model: mujoco.MjModel, data: mujoco.MjData, collisions: bool = Fa
             state["reset"] = True
         elif simulation is not None and key in (ord("H"), ord("h")):
             state["head"] = True
-    # 모터 검사는 PD로 서 있는 모습을, 형상 검사는 물리를 정지한 초기 배치를 보여준다.
+    # shots 모드도 같은 viewer를 쓴다. 에피소드 종료/새 공 발사는 실제 MJLab 환경이 처리한다.
     with mujoco.viewer.launch_passive(model, data, key_callback=key_callback) as viewer:
         if collisions:
             with viewer.lock():
@@ -105,7 +105,8 @@ def view_scene(model: mujoco.MjModel, data: mujoco.MjData, collisions: bool = Fa
                 from goalkeeper_mjlab.robots.k1.constants import K1_JOINT_ORDER
                 target = simulation.target.copy()
                 state["head_index"] = (state["head_index"] + 1) % 3
-                target[K1_JOINT_ORDER.index("Head_Yaw")] = (0.0, 0.2, -0.2)[state["head_index"]]
+                # 병렬 슛 모드는 [N,22], 기존 단일 모터 검사는 [22] 목표각을 사용한다.
+                target[..., K1_JOINT_ORDER.index("Head_Yaw")] = (0.0, 0.2, -0.2)[state["head_index"]]
                 simulation.set_target(target)
                 state["head"] = False
             if state["simulate"]:
@@ -121,8 +122,8 @@ def view_scene(model: mujoco.MjModel, data: mujoco.MjData, collisions: bool = Fa
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="K1 goalkeeper validation: controlled motors or static geometry")
-    parser.add_argument("--mode", choices=("motors", "geometry"), default="motors", help="Validation mode: motors (default) or geometry without actuators")
+    parser = argparse.ArgumentParser(description="K1 goalkeeper validation: motors, geometry or random shots")
+    parser.add_argument("--mode", choices=("motors", "geometry", "shots"), default="motors", help="motors (default), static geometry, or repeated random shots")
     display = parser.add_mutually_exclusive_group()
     display.add_argument("--viewer", dest="viewer", action="store_true", help="Open viewer (default); P: pause, R: reset, H: head target in motor mode")
     display.add_argument("--headless", dest="viewer", action="store_false", help="Check/export the scene without opening a viewer")
@@ -142,7 +143,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--ball-z", type=float)
     # 골대 크기는 전체 확대 비율로 고른다. small 약 1.8x1.2 m, mid 2.4x1.6 m, large 3.0x2.0 m(외곽 기준).
     parser.add_argument("--goal-division", choices=("small", "mid", "large"), default="mid")
-    parser.add_argument("--goal-distance", type=float, default=0.75)
+    # main.py 실행은 이 값이 환경 함수의 기본값(0.75 m)보다 우선한다.
+    # 로봇 기준점 x=0에서 뒤쪽 골라인 x=-거리까지의 수평 거리(m)다.
+    parser.add_argument("--goal-distance", type=float, default=0.5)
     parser.add_argument("--origin", type=float, nargs=3, default=(0., 0., 0.))
     parser.add_argument("--joint", action="append", default=[], metavar="NAME=RAD")
     parser.add_argument("--target", action="append", default=[], metavar="NAME=RAD", help="Motor target, applied through PD and command delay")
@@ -155,6 +158,19 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--delay-min", type=int, default=2, help="Command delay in physics steps")
     parser.add_argument("--delay-max", type=int, default=8)
     parser.add_argument("--delay-hold-prob", type=float, default=0.3, help="Probability of keeping the current MJLab command lag")
+    # 아래 범위는 초기 위치가 아니라 매 reset 때 새로 뽑는 슛의 분포다. 거리 m, 속도 m/s.
+    parser.add_argument("--shots", type=int, help="Minimum completed shots across all environments; headless default 10, viewer default continuous")
+    parser.add_argument("--num-envs", type=int, default=1, help="Parallel shot environments; viewer displays environment 0")
+    parser.add_argument("--device", default="cpu", help="Shot simulation device: cpu or cuda:0 on a supported server")
+    parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--ground-prob", type=float, default=0.5)
+    parser.add_argument("--shot-speed", type=float, nargs=2, default=(3., 8.), metavar=("MIN", "MAX"))
+    parser.add_argument("--shot-distance", type=float, nargs=2, default=(1.5, 3.), metavar=("MIN", "MAX"))
+    parser.add_argument("--shot-y", type=float, nargs=2, default=(-1., 1.), metavar=("MIN", "MAX"))
+    parser.add_argument("--air-launch-height", type=float, nargs=2, default=(.2, .6), metavar=("MIN", "MAX"))
+    parser.add_argument("--target-y-fraction", type=float, nargs=2, default=(-.85, .85), metavar=("MIN", "MAX"))
+    parser.add_argument("--air-target-height-fraction", type=float, nargs=2, default=(.05, .85), metavar=("MIN", "MAX"))
+    parser.add_argument("--episode-seconds", type=float, default=3.)
     cli_args = list(sys.argv[1:] if argv is None else argv)
     args = parser.parse_args(cli_args)
     try:
@@ -166,19 +182,48 @@ def main(argv: list[str] | None = None) -> int:
             raise ValueError("simulate-seconds must be finite and nonnegative")
         if args.export and args.export.suffix != ".zip":
             raise ValueError("export path must end in .zip so assets remain self-contained")
-        if args.mode == "geometry" and (args.target or args.check_motors):
-            raise ValueError("target/check-motors require --mode motors")
+        if args.mode == "geometry" and args.target:
+            raise ValueError("target requires a controlled mode")
+        if args.mode != "motors" and args.check_motors:
+            raise ValueError("check-motors requires --mode motors")
+        if args.mode != "shots" and (args.shots is not None or args.num_envs != 1 or args.device != "cpu"):
+            raise ValueError("shots/num-envs/device options require --mode shots")
+        if args.shots is not None and args.shots < 1:
+            raise ValueError("shots must be positive")
+        if args.physics_dt is not None and (not np.isfinite(args.physics_dt) or args.physics_dt <= 0):
+            raise ValueError("physics-dt must be finite and positive")
+        if args.decimation < 1 or args.seed < 0:
+            raise ValueError("decimation must be positive and seed must be nonnegative")
         pose = HOME_POSE
-        factory = make_goalkeeper_env_cfg if args.mode == "motors" else make_geometry_env_cfg
+        factory = make_geometry_env_cfg if args.mode == "geometry" else goalkeeper_k1_env_cfg
+        shot_options = {}
+        if args.mode == "shots":
+            from goalkeeper_mjlab.tasks.goalkeeper.mdp.events import ShotCfg
+            shot_options = dict(num_envs=args.num_envs, shots=ShotCfg(
+                ground_probability=args.ground_prob, speed=tuple(args.shot_speed),
+                launch_distance=tuple(args.shot_distance), launch_y=tuple(args.shot_y),
+                air_launch_height=tuple(args.air_launch_height),
+                target_y_fraction=tuple(args.target_y_fraction),
+                air_target_height_fraction=tuple(args.air_target_height_fraction),
+                episode_timeout_s=args.episode_seconds,
+            ))
         cfg = factory(
-            robot_pose=pose.with_joint_overrides(overrides),
             ball=BallCfg(args.ball_size, args.ball_radius, args.ball_mass),
             goal=GoalCfg(args.goal_division),
             ball_position=(args.ball_x, args.ball_y, args.ball_z), goal_distance=args.goal_distance,
-            physics_dt=args.physics_dt if args.physics_dt is not None else (0.005 if args.mode == "motors" else 0.002),
-            decimation=args.decimation, motor_source=args.motor_source,
-            delay_min_lag=args.delay_min, delay_max_lag=args.delay_max, delay_hold_prob=args.delay_hold_prob,
+            **shot_options,
         )
+        # 학습 환경 함수에는 검사 전용 옵션을 노출하지 않는다.
+        # wirlwind처럼 반환된 기본 MJLab 설정을 수정한다. CLI에서 비교 검사할 때만 바꾸는 값이다.
+        cfg.scene.entities["robot"] = get_k1_robot_cfg(
+            pose=pose.with_joint_overrides(overrides), motor_source=args.motor_source,
+            delay_min_lag=args.delay_min, delay_max_lag=args.delay_max,
+            delay_hold_prob=args.delay_hold_prob,
+        )
+        if args.physics_dt is not None:
+            cfg.sim.mujoco.timestep = args.physics_dt
+        cfg.decimation = args.decimation
+        cfg.seed = args.seed
         # 옵션이 없으면 화면을 연다. 서버 검사만 할 때는 --headless로 GUI 초기화를 생략한다.
         if args.viewer:
             _ensure_viewer_runtime(cli_args)
@@ -199,15 +244,30 @@ def main(argv: list[str] | None = None) -> int:
                     raise ValueError(f"Unknown target joint: {name}")
                 target[K1_JOINT_ORDER.index(name)] = float(angle)
             simulation.set_target(target)
+        elif args.mode == "shots":
+            from goalkeeper_mjlab.validation.shots import ShotSimulation
+            with redirect_stdout(sys.stderr):
+                simulation = ShotSimulation(cfg, tuple(args.origin), device=args.device)
+            model, data = simulation.model, simulation.data
+            target = simulation.initial_target.copy()
+            for value in args.target:
+                name, angle = value.split("=", 1)
+                if name not in K1_JOINT_ORDER:
+                    raise ValueError(f"Unknown target joint: {name}")
+                target[..., K1_JOINT_ORDER.index(name)] = float(angle)
+            simulation.set_target(target)
+            with redirect_stdout(sys.stderr):
+                # 화면에서는 바로 시작한다. 서버에서는 완료된 에피소드를 반복 수집한다.
+                report = simulation.run_episodes(args.shots or 10) if (args.shots is not None or not args.viewer) else simulation.run(0.)
         else:
             report = inspect_geometry(cfg, tuple(args.origin))
             geometry_scene, model, data = compile_geometry_scene(cfg, tuple(args.origin))
         if args.mjlab_check:
             from mjlab.scene import Scene
-            scene_cfg = cfg.scene if args.mode == "motors" else make_geometry_scene_cfg(cfg)
+            scene_cfg = make_geometry_scene_cfg(cfg) if args.mode == "geometry" else cfg.scene
             mjlab_model = Scene(scene_cfg, device="cpu").compile()
             actual = (mjlab_model.nq, mjlab_model.nv, mjlab_model.nu, mjlab_model.nmocap)
-            report["mjlab_compile"] = {"passed": actual == (36, 34, 22 if args.mode == "motors" else 0, 1), "dimensions": list(actual)}
+            report["mjlab_compile"] = {"passed": actual == (36, 34, 0 if args.mode == "geometry" else 22, 1), "dimensions": list(actual)}
             if not report["mjlab_compile"]["passed"]:
                 report["errors"].append("MJLab scene dimensions differ from the native scene")
                 report["passed"] = False
@@ -221,8 +281,8 @@ def main(argv: list[str] | None = None) -> int:
         if simulation is not None and args.simulate_seconds:
             with redirect_stdout(sys.stderr):
                 metrics = simulation.run(args.simulate_seconds)
-            report["controlled_simulation"] = metrics
-            if not metrics["finite"] or metrics["maximum_torque_violation_nm"] > 1e-4:
+            report["shot_simulation" if args.mode == "shots" else "controlled_simulation"] = metrics
+            if not metrics["finite"] or (args.mode == "motors" and metrics["maximum_torque_violation_nm"] > 1e-4):
                 report["passed"] = False
                 report["errors"].append("Controlled simulation produced invalid state or exceeded a torque limit")
         elif simulation is None:
@@ -243,6 +303,8 @@ def main(argv: list[str] | None = None) -> int:
             args.report.write_text(output + "\n")
         if args.viewer:
             view_scene(model, data, args.collisions, simulation=simulation)
+        if args.mode == "shots":
+            simulation.close()
         return 0 if report["passed"] else 1
     except (ValueError, FileNotFoundError, RuntimeError, ImportError) as exc:
         parser.error(str(exc))

@@ -19,9 +19,9 @@ from goalkeeper_mjlab import PACKAGE_ROOT
 from goalkeeper_mjlab.validation.motor_checks import check_motors, configuration_report, torque_probe
 from goalkeeper_mjlab.validation.motor_runtime import MotorSimulation
 from goalkeeper_mjlab.robots.k1.constants import K1_JOINT_ORDER
-from goalkeeper_mjlab.robots.k1.constants import get_motors, hold_controllers
+from goalkeeper_mjlab.robots.k1.constants import get_k1_robot_cfg, get_motors, hold_controllers
 from goalkeeper_mjlab.scripts.inspect_scene import main
-from goalkeeper_mjlab.tasks.goalkeeper.config.k1.env_cfgs import make_goalkeeper_env_cfg
+from goalkeeper_mjlab.tasks.goalkeeper.config.k1.env_cfgs import goalkeeper_k1_env_cfg
 
 
 class MotorTests(unittest.TestCase):
@@ -33,7 +33,11 @@ class MotorTests(unittest.TestCase):
         self.runtime.reset()
 
     def make_runtime(self, num_envs=2, **kwargs):
-        return MotorSimulation(make_goalkeeper_env_cfg(num_envs=num_envs, **kwargs))
+        cfg = goalkeeper_k1_env_cfg(num_envs=num_envs)
+        if kwargs:
+            # 지연을 바꿔 비교하는 것은 이 검사의 조건이다. 로봇 설정에서 직접 바꾼다.
+            cfg.scene.entities["robot"] = get_k1_robot_cfg(**kwargs)
+        return MotorSimulation(cfg)
 
     def assert_ctrl(self, runtime, expected):
         torch.testing.assert_close(runtime.sim.data.ctrl[:, runtime.ctrl_ids], expected, atol=1e-6, rtol=0)
@@ -159,13 +163,14 @@ class MotorTests(unittest.TestCase):
         self.assertLessEqual(abs(r.sim.data.actuator_force[1, aid].item()), 21.5 + 1e-4)
 
     def test_independent_220_case_engine_force_probe(self):
-        result = torque_probe(make_goalkeeper_env_cfg())
+        result = torque_probe(goalkeeper_k1_env_cfg())
         self.assertTrue(result["passed"], result)
         self.assertEqual(result["joint_cases"], 220)
         self.assertGreater(result["saturated_cases"], 100)
 
     def test_software_cap_is_applied_after_physical_derating(self):
-        cfg = make_goalkeeper_env_cfg(delay_min_lag=0, delay_max_lag=0,
+        cfg = goalkeeper_k1_env_cfg()
+        cfg.scene.entities["robot"] = get_k1_robot_cfg(delay_min_lag=0, delay_max_lag=0,
             controllers={k: replace(v, output_limit=5.) for k, v in hold_controllers().items()})
         r = MotorSimulation(cfg)
         q = r.robot.data.default_joint_pos.clone()
@@ -222,7 +227,7 @@ class MotorTests(unittest.TestCase):
 
     def test_actual_rl_environment_uses_the_same_configuration(self):
         from mjlab.envs import ManagerBasedRlEnv, ManagerBasedRlEnvCfg
-        cfg = make_goalkeeper_env_cfg(num_envs=2)
+        cfg = goalkeeper_k1_env_cfg(num_envs=2)
         self.assertIs(type(cfg), ManagerBasedRlEnvCfg)
         cfg.episode_length_s = 10.0  # 이 검사의 길이이며, 실제 학습 에피소드 설계는 후속 구현이다.
         env = ManagerBasedRlEnv(cfg, device="cpu")
@@ -242,7 +247,7 @@ class MotorTests(unittest.TestCase):
     def test_invalid_inputs_are_rejected(self):
         for kwargs in ({"delay_min_lag": -1}, {"delay_min_lag": 9}, {"delay_hold_prob": 1.1}, {"controllers": {}}):
             with self.subTest(kwargs=kwargs), self.assertRaises(ValueError):
-                make_goalkeeper_env_cfg(**kwargs)
+                get_k1_robot_cfg(**kwargs)
         for target in (np.zeros(21), np.full(22, np.nan), np.full(22, 100.)):
             with self.assertRaises(ValueError):
                 self.runtime.set_target(target)

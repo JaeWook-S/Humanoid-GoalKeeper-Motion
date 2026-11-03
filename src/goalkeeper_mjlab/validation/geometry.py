@@ -16,15 +16,17 @@ from goalkeeper_mjlab.assets import verify_source_assets
 from goalkeeper_mjlab.robots.k1.constants import (
     FOOT_COLLISION_GEOMS, HAND_BODIES, HAND_COLLISION_GEOMS, K1_JOINT_ORDER, geom_world_bounds,
 )
-from goalkeeper_mjlab.tasks.goalkeeper.config.k1.env_cfgs import make_goalkeeper_env_cfg
-from goalkeeper_mjlab.robots.k1.constants import HOME_POSE
+from goalkeeper_mjlab.tasks.goalkeeper.config.k1.env_cfgs import goalkeeper_k1_env_cfg
+from goalkeeper_mjlab.robots.k1.constants import get_k1_robot_cfg
 
 
-def make_geometry_env_cfg(**kwargs):
-    """형상 검사만의 기본값. 학습 환경 구성 함수에 입력할 자세와 정적 검사 간격만 바꾼다."""
-    kwargs.setdefault("robot_pose", HOME_POSE)
-    kwargs.setdefault("physics_dt", 0.002)
-    return make_goalkeeper_env_cfg(**kwargs)
+def make_geometry_env_cfg(*, robot_pose=None, **kwargs):
+    """실제 K1 환경에서 형상 검사에 필요한 값만 바꾼다. 학습 설정의 인자를 늘리지 않는다."""
+    cfg = goalkeeper_k1_env_cfg(**kwargs)
+    cfg.sim.mujoco.timestep = 0.002
+    if robot_pose is not None:
+        cfg.scene.entities["robot"] = get_k1_robot_cfg(pose=robot_pose)
+    return cfg
 
 
 def make_geometry_scene_cfg(cfg=None):
@@ -32,6 +34,8 @@ def make_geometry_scene_cfg(cfg=None):
     cfg = cfg if cfg is not None else make_geometry_env_cfg()
     scene = deepcopy(cfg.scene)
     scene.num_envs = 1
+    # 학습 환경에는 항상 공 접촉 센서가 있다. 정적 형상 검사에서는 추가 센서를 사용하지 않는다.
+    scene.sensors = ()
     robot = scene.entities["robot"]
     scene.entities["robot"] = EntityCfg(**{
         f.name: None if f.name == "articulation" else getattr(robot, f.name) for f in fields(EntityCfg)

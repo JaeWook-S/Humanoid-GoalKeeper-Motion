@@ -13,13 +13,15 @@ from mjlab.envs.mdp.events import reset_scene_to_default
 
 from goalkeeper_mjlab.robots.k1.constants import K1_JOINT_ORDER
 from goalkeeper_mjlab.robots.k1.torque_speed import bind_motor_limits
-from goalkeeper_mjlab.tasks.goalkeeper.config.k1.env_cfgs import make_goalkeeper_env_cfg
+from goalkeeper_mjlab.tasks.goalkeeper.config.k1.env_cfgs import goalkeeper_k1_env_cfg
 from copy import deepcopy
 
 
 class MotorSimulation:
     def __init__(self, cfg=None, origin=(0., 0., 0.), device="cpu"):
-        self.cfg = deepcopy(cfg if cfg is not None else make_goalkeeper_env_cfg())
+        self.cfg = deepcopy(cfg if cfg is not None else goalkeeper_k1_env_cfg())
+        # 학습 환경은 항상 슛을 포함한다. 이 실행기는 모터만 검사하므로 복사한 장면의 추가 센서를 뺀다.
+        self.cfg.scene.sensors = ()
         self.physics_dt = self.cfg.sim.mujoco.timestep
         self.policy_dt = self.physics_dt * self.cfg.decimation
         if len(origin) != 3 or not np.isfinite(origin).all():
@@ -28,7 +30,9 @@ class MotorSimulation:
         self.device = device
         self.num_envs = self.cfg.scene.num_envs
         # 실제 학습은 전체 학습 seed를 설정한다. 이 실행기도 기본 MJLab 지연의 난수를 같은 seed로 시작한다.
-        torch.manual_seed(self.cfg.seed)
+        # MJLab 기본값 None도 허용한다. seed를 지정하지 않았다면 현재 난수 상태를 사용한다.
+        if self.cfg.seed is not None:
+            torch.manual_seed(self.cfg.seed)
         self.scene = Scene(self.cfg.scene, device=device)
         self.scene.env_origins.add_(torch.tensor(origin, device=device))
         self.spec = self.scene.spec

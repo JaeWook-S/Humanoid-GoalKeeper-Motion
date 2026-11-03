@@ -16,8 +16,9 @@ class PortabilityTests(unittest.TestCase):
         code = """
 import sys
 from mjlab.envs import ManagerBasedRlEnvCfg
-from goalkeeper_mjlab.tasks.goalkeeper.config.k1.env_cfgs import make_goalkeeper_env_cfg
-cfg = make_goalkeeper_env_cfg(num_envs=2)
+from goalkeeper_mjlab.tasks.goalkeeper.config.k1.env_cfgs import goalkeeper_k1_env_cfg
+from goalkeeper_mjlab.tasks.goalkeeper.mdp.events import ShotCfg
+cfg = goalkeeper_k1_env_cfg(num_envs=2, shots=ShotCfg())
 assert type(cfg) is ManagerBasedRlEnvCfg
 assert not any(name.startswith('goalkeeper_mjlab.validation') for name in sys.modules)
 assert not any(name.startswith('goalkeeper_mjlab.scripts') for name in sys.modules)
@@ -72,7 +73,10 @@ runpy.run_path(entry, run_name='__main__')
 """
             env = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
             env["PYTHONDONTWRITEBYTECODE"] = "1"
-            for args in (["--mode", "geometry"], ["--check-motors", "--hold-seconds", "1"]):
+            # 3단계도 서버에 이 저장소 하나만 존재하는 조건으로 실제 실행한다.
+            # 짧은 시간 제한은 검사를 빠르게 하기 위한 값이며 학습 기본값은 바꾸지 않는다.
+            for args in (["--mode", "geometry"], ["--check-motors", "--hold-seconds", "1"],
+                         ["--mode", "shots", "--shots", "3", "--num-envs", "2", "--episode-seconds", "0.12"]):
                 with self.subTest(args=args):
                     result = subprocess.run(
                         [sys.executable, "-c", guard, json.dumps([str(p) for p in blocked]),
@@ -82,7 +86,12 @@ runpy.run_path(entry, run_name='__main__')
                     self.assertEqual(result.returncode, 0, result.stderr)
                     report = json.loads(result.stdout)
                     self.assertTrue(report["passed"], report.get("errors"))
-                    self.assertEqual(report["source_assets"]["file_count"], 31)
+                    if "shots" in args:
+                        self.assertGreaterEqual(report["completed_episodes"], 3)
+                        self.assertLess(report["completed_episodes"], 5)
+                        self.assertEqual(report["num_envs"], 2)
+                    else:
+                        self.assertEqual(report["source_assets"]["file_count"], 31)
 
 
 if __name__ == "__main__":

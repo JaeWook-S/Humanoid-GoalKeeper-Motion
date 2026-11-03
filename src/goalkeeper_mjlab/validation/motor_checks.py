@@ -12,7 +12,7 @@ from goalkeeper_mjlab.assets import verify_source_assets
 from goalkeeper_mjlab.validation.motor_runtime import MotorSimulation
 from goalkeeper_mjlab.robots.k1.constants import K1_JOINT_ORDER
 from goalkeeper_mjlab.robots.k1.constants import get_motors, motor_group
-from goalkeeper_mjlab.tasks.goalkeeper.config.k1.env_cfgs import make_goalkeeper_env_cfg
+from goalkeeper_mjlab.tasks.goalkeeper.config.k1.env_cfgs import goalkeeper_k1_env_cfg
 
 
 def _motor_settings(cfg):
@@ -107,7 +107,7 @@ def torque_probe(cfg):
 
 
 def check_motors(cfg=None, hold_seconds=10., origin=(0., 0., 0.)):
-    cfg = cfg if cfg is not None else make_goalkeeper_env_cfg()
+    cfg = cfg if cfg is not None else goalkeeper_k1_env_cfg()
     if not math.isfinite(hold_seconds) or hold_seconds < 1:
         raise ValueError("Hold verification must run for at least 1 second")
     runtime = MotorSimulation(cfg, origin)
